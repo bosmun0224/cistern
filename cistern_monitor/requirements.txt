@@ -1,0 +1,9 @@
+# Python package dependencies for the Cistern Monitoring System
+
+# Library for interfacing with MCP300x series ADCs (e.g., MCP3008)
+# This is used to read analog sensor values with the Raspberry Pi.
+Adafruit-CircuitPython-MCP3xxx
+
+# Future potential additions (examples):
+# python-dotenv # For loading configuration from .env files
+# requests      # If making HTTP requests for other notification methods
