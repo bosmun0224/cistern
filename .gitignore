@@ -1,0 +1,13 @@
+# WiFi credentials and secrets
+config.py
+!config.py.example
+
+# Temp files
+*.tmp
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

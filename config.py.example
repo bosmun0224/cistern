@@ -1,0 +1,13 @@
+# config.py - Configuration (DO NOT COMMIT)
+# Copy this file to config.py and fill in your values
+
+# WiFi credentials
+WIFI_SSID = "your_wifi_name"
+WIFI_PASSWORD = "your_wifi_password"
+
+# OTA Updates - GitHub raw URL to your repo
+# Example: "https://raw.githubusercontent.com/username/cistern/main/"
+OTA_BASE_URL = "https://raw.githubusercontent.com/YOUR_USER/cistern/main/"
+
+# Files to update via OTA (boot.py excluded to prevent bricking)
+OTA_FILES = ['main.py', 'sensor.py', 'ota.py']
