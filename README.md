@@ -15,24 +15,28 @@ Remote cistern water level monitoring using a Raspberry Pi Pico W with OTA updat
 
 ```mermaid
 graph LR
-    subgraph Power
-        PS[12-24V Supply]
+    subgraph USB Power
+        USB[USB Micro<br>5V]
     end
 
-    subgraph Sensor
-        DS[4-20mA<br>Depth Sensor]
+    subgraph Pico W
+        VBUS[VBUS - 5V]
+        ADC0[GP26 / ADC0]
+        GND1[GND]
+        MCU[RP2040<br>+ WiFi]
     end
 
     subgraph Converter
         HW[HW-685<br>4-20mA → Voltage]
     end
 
-    subgraph Pico W
-        ADC0[GP26 / ADC0]
-        MCU[RP2040<br>+ WiFi]
+    subgraph Sensor
+        DS[4-20mA<br>Depth Sensor]
     end
 
-    PS -->|Power| DS
+    USB -->|5V| VBUS
+    VBUS -->|VCC| HW
+    GND1 -->|GND| HW
     DS -->|4-20mA| HW
     HW -->|AOUT| ADC0
     ADC0 --- MCU
@@ -42,6 +46,7 @@ graph LR
 
 | HW-685 | Pico W |
 |--------|--------|
+| VCC    | VBUS (5V) |
 | AOUT   | GP26   |
 | GND    | GND    |
 
