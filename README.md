@@ -14,57 +14,22 @@ Remote cistern water level monitoring using a Raspberry Pi Pico W with OTA updat
 ## Wiring
 
 ```mermaid
-graph LR
-    subgraph USB Power
-        USB[USB Micro<br>5V]
-    end
+graph TD
+    USB[USB Micro 5V] --> VBUS[Pico W - VBUS]
 
-    subgraph Sensor
-        RED[Red Wire]
-        BLK[Black Wire]
-    end
+    VBUS -->|5V| VCC[HW-685 VCC]
+    SENSOR_RED[Sensor Red] --> VCC
+    SENSOR_BLK[Sensor Black] --> IP[HW-685 I+]
 
-    subgraph HW-685 Input Side
-        IP[I+]
-        VCC[VCC]
-    end
+    AOUT[HW-685 AOUT] --> A0[ADS1115 A0]
 
-    subgraph HW-685 Output Side
-        AOUT[AOUT]
-        GNDH[GND]
-    end
+    PICO_3V3[Pico W - 3V3] --> ADS_VDD[ADS1115 VDD]
+    PICO_GND[Pico W - GND] --> ADS_GND[ADS1115 GND]
+    PICO_GND --> HW_GND[HW-685 GND]
+    ADS_GND --> ADS_ADDR[ADS1115 ADDR]
 
-    subgraph ADS1115
-        A0[A0]
-        ADDR[ADDR]
-        VDDA[VDD]
-        GNDA[GND]
-        SDA[SDA]
-        SCL[SCL]
-    end
-
-    subgraph Pico W
-        VBUS[VBUS - 5V]
-        V3[3V3]
-        GP4[GP4 - SDA]
-        GP5[GP5 - SCL]
-        GND1[GND]
-        MCU[RP2040<br>+ WiFi]
-    end
-
-    USB -->|5V| VBUS
-    VBUS --> VCC
-    RED --> VCC
-    BLK --> IP
-    AOUT --> A0
-    GND1 --> GNDH
-    GND1 --> GNDA
-    GNDA --> ADDR
-    V3 --> VDDA
-    SDA --> GP4
-    SCL --> GP5
-    GP4 --- MCU
-    GP5 --- MCU
+    ADS_SDA[ADS1115 SDA] --> GP4[Pico W - GP4]
+    ADS_SCL[ADS1115 SCL] --> GP5[Pico W - GP5]
 ```
 
 **Pin connections:**
