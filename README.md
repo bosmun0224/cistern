@@ -19,6 +19,21 @@ graph LR
         USB[USB Micro<br>5V]
     end
 
+    subgraph Sensor
+        RED[Red Wire]
+        BLK[Black Wire]
+    end
+
+    subgraph HW-685 Input Side
+        IP[I+]
+        VCC[VCC]
+    end
+
+    subgraph HW-685 Output Side
+        AOUT[AOUT]
+        GNDH[GND]
+    end
+
     subgraph Pico W
         VBUS[VBUS - 5V]
         ADC0[GP26 / ADC0]
@@ -26,24 +41,12 @@ graph LR
         MCU[RP2040<br>+ WiFi]
     end
 
-    subgraph HW-685
-        VCC[VCC]
-        AOUT[AOUT]
-        GNDH[GND]
-        IP[I+]
-    end
-
-    subgraph Sensor
-        RED[Red Wire]
-        BLK[Black Wire]
-    end
-
     USB -->|5V| VBUS
     VBUS --> VCC
-    GND1 --> GNDH
     RED --> VCC
     BLK --> IP
     AOUT --> ADC0
+    GND1 --> GNDH
     ADC0 --- MCU
 ```
 
