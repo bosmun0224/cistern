@@ -5,6 +5,13 @@ config.py
 # Temp files
 *.tmp
 
+# Terraform
+infrastructure/.terraform/
+infrastructure/*.tfstate
+infrastructure/*.tfstate.backup
+infrastructure/terraform.tfvars
+!infrastructure/terraform.tfvars.example
+
 # macOS
 .DS_Store
 

@@ -1,18 +1,19 @@
 # boot.py - Runs before main.py
 import network
 import time
-
-try:
-    from config import WIFI_SSID, WIFI_PASSWORD
-except ImportError:
-    print("ERROR: config.py not found. Copy config.py.example to config.py")
-    WIFI_SSID = None
-    WIFI_PASSWORD = None
+from provision import has_config
 
 wlan = None
 
 def connect_wifi():
     global wlan
+    
+    try:
+        from config import WIFI_SSID, WIFI_PASSWORD
+    except ImportError:
+        WIFI_SSID = None
+        WIFI_PASSWORD = None
+    
     if not WIFI_SSID:
         return False
     
@@ -41,5 +42,15 @@ def connect_wifi():
         print("WiFi connection failed")
         return False
 
-# Connect on boot
-connect_wifi()
+# Boot flow
+if has_config():
+    if not connect_wifi():
+        # WiFi creds exist but connection failed — start provisioning
+        print("Connection failed, starting setup mode...")
+        from provision import run_server
+        run_server()
+else:
+    # No config — start provisioning
+    print("No WiFi configured, starting setup mode...")
+    from provision import run_server
+    run_server()

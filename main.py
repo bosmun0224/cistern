@@ -4,6 +4,7 @@ from machine import Pin
 
 from sensor import read_depth, scan_i2c
 from ota import check_for_updates
+from firebase import post_reading
 
 # Onboard LED for status
 led = Pin('LED', Pin.OUT)
@@ -45,8 +46,7 @@ def main():
             
             blink(1)  # Heartbeat
             
-            # TODO: Send data to server/cloud
-            # post_reading(data)
+            post_reading(data)
             
         except Exception as e:
             print(f"Error reading sensor: {e}")

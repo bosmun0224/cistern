@@ -26,7 +26,7 @@ graph TD
     PICO_3V3[Pico W - 3V3] --> ADS_VDD[ADS1115 VDD]
     PICO_GND[Pico W - GND] --> ADS_GND[ADS1115 GND]
     PICO_GND --> HW_GND[HW-685 GND]
-    ADS_GND --> ADS_ADDR[ADS1115 ADDR]
+    ADS_GND ---|jumper| ADS_ADDR[ADS1115 ADDR]
 
     ADS_SDA[ADS1115 SDA] --> GP4[Pico W - GP4]
     ADS_SCL[ADS1115 SCL] --> GP5[Pico W - GP5]
@@ -50,12 +50,39 @@ graph TD
 ## Setup
 
 1. Flash MicroPython to your Pico W
-2. Copy `config.py.example` to `config.py` and fill in your WiFi credentials
-3. Upload all `.py` files to the Pico
+2. Upload all `.py` files to the Pico:
 
 ```bash
 pip install mpremote
-mpremote cp boot.py main.py sensor.py ota.py config.py :
+mpremote cp boot.py main.py sensor.py ota.py firebase.py provision.py config.py.example :
+```
+
+3. Power on the Pico — it starts a **"Cistern-Setup"** WiFi hotspot
+4. Connect your phone to it (password: `cistern123`)
+5. Enter the home WiFi credentials in the setup page
+6. Pico saves, reboots, and starts monitoring
+
+## Firebase
+
+Readings are posted to Firestore every 60 seconds.
+
+### Infrastructure
+
+```bash
+cd infrastructure
+cp terraform.tfvars.example terraform.tfvars  # set your project ID
+./init.sh
+terraform apply
+```
+
+### Dashboard
+
+A single-page dashboard in `dashboard/index.html` — deploy anywhere (GitHub Pages, Vercel, etc.).
+
+1. Edit `dashboard/index.html` and set `FIREBASE_PROJECT_ID` and `FIREBASE_API_KEY`
+2. Open in a browser or deploy
+
+Shows: water level gauge, depth, voltage, 24h history chart.
 ```
 
 ## OTA Updates
@@ -72,12 +99,16 @@ To push an update:
 
 | File | Purpose |
 |------|---------|
-| `boot.py` | WiFi connection on startup |
-| `main.py` | Main loop |
+| `boot.py` | WiFi connection or provisioning on startup |
+| `main.py` | Main loop: read sensor, post to Firebase |
 | `sensor.py` | ADS1115 driver + depth calculation |
 | `ota.py` | Over-the-air update logic |
-| `config.py` | WiFi creds (gitignored) |
+| `firebase.py` | Post readings to Firestore |
+| `provision.py` | WiFi AP provisioning (captive portal) |
+| `config.py.example` | Config template (gitignored when copied) |
 | `version.txt` | Current firmware version |
+| `dashboard/` | Web dashboard (static HTML) |
+| `infrastructure/` | Terraform for Firebase setup |
 
 ## Calibration
 

@@ -15,11 +15,15 @@ Water level monitoring system using Raspberry Pi Pico W with OTA updates.
 ```
 
 ## Files
-- `boot.py` - WiFi connection on startup
-- `main.py` - Main loop: read sensor, check OTA, report data
+- `boot.py` - WiFi connection or AP provisioning
+- `main.py` - Main loop: read sensor, check OTA, post to Firebase
 - `sensor.py` - ADS1115 + depth calculation
 - `ota.py` - Over-the-air update logic
-- `config.py` - WiFi creds & settings (gitignored)
+- `firebase.py` - Post readings to Firestore REST API
+- `provision.py` - WiFi AP captive portal for setup
+- `config.py` - WiFi creds, Firebase keys, OTA URL (gitignored)
+- `dashboard/` - Static HTML dashboard for viewing data
+- `infrastructure/` - Terraform for Firebase project setup
 
 ## Development
 - Language: MicroPython

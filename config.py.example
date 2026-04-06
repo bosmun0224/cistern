@@ -5,9 +5,12 @@
 WIFI_SSID = "your_wifi_name"
 WIFI_PASSWORD = "your_wifi_password"
 
+# Firebase
+FIREBASE_PROJECT_ID = "your-firebase-project-id"
+FIREBASE_API_KEY = "your-firebase-api-key"
+
 # OTA Updates - GitHub raw URL to your repo
-# Example: "https://raw.githubusercontent.com/username/cistern/main/"
 OTA_BASE_URL = "https://raw.githubusercontent.com/YOUR_USER/cistern/main/"
 
 # Files to update via OTA (boot.py excluded to prevent bricking)
-OTA_FILES = ['main.py', 'sensor.py', 'ota.py']
+OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py']
