@@ -23,35 +23,27 @@ graph LR
         DS[4-20mA<br>Depth Sensor]
     end
 
-    subgraph Signal Chain
+    subgraph Converter
         HW[HW-685<br>4-20mA → Voltage]
-        ADC[ADS1115<br>16-bit ADC]
     end
 
     subgraph Pico W
-        I2C[I2C0<br>SDA=GP4 SCL=GP5]
+        ADC0[GP26 / ADC0]
         MCU[RP2040<br>+ WiFi]
     end
 
     PS -->|Power| DS
     DS -->|4-20mA| HW
-    HW -->|Analog A0| ADC
-    ADC -->|I2C| I2C
-    I2C --- MCU
-    ADC ---|VDD → 3V3| MCU
-    ADC ---|GND| MCU
-    ADC ---|ADDR → GND| ADC
+    HW -->|AOUT| ADC0
+    ADC0 --- MCU
 ```
 
 **Pin connections:**
 
-| ADS1115 | Pico W |
-|---------|--------|
-| VDD     | 3V3    |
-| GND     | GND    |
-| SDA     | GP4    |
-| SCL     | GP5    |
-| ADDR    | GND    |
+| HW-685 | Pico W |
+|--------|--------|
+| AOUT   | GP26   |
+| GND    | GND    |
 
 ## Setup
 

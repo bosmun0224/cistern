@@ -1,48 +1,35 @@
-# sensor.py - ADS1115 ADC + 4-20mA depth sensor
-from machine import I2C, Pin
-import time
+# sensor.py - Water depth sensor via HW-685
+# Current setup: HW-685 AOUT -> GP26 (Pico built-in ADC)
+# Future upgrade: HW-685 -> ADS1115 (I2C) for 16-bit resolution
 
-# I2C setup (Pico W: SDA=GP4, SCL=GP5)
-i2c = I2C(0, scl=Pin(5), sda=Pin(4), freq=400000)
+from machine import ADC, Pin
 
-# ADS1115 config
-ADS1115_ADDR = 0x48
-REG_CONVERSION = 0x00
-REG_CONFIG = 0x01
+# Pico built-in ADC on GP26 (ADC0) - 12-bit, 0-3.3V
+adc = ADC(Pin(26))
 
 # Calibration - adjust these for your setup
 V_MIN = 0.66      # Voltage at 4mA (0 depth)
 V_MAX = 3.3       # Voltage at 20mA (max depth)
 DEPTH_MAX = 5.0   # Sensor max depth in meters
 
-
-def read_adc(channel=0):
-    """Read raw value from ADS1115 channel (0-3)"""
-    # Config: start single conversion, AINx, +/-4.096V, 128SPS
-    config = [0xC0 | (channel << 4) | 0x03, 0x83]
-    i2c.writeto_mem(ADS1115_ADDR, REG_CONFIG, bytes(config))
-    time.sleep(0.01)
-    
-    data = i2c.readfrom_mem(ADS1115_ADDR, REG_CONVERSION, 2)
-    value = (data[0] << 8) | data[1]
-    if value > 32767:
-        value -= 65536
-    return value
+# Pico ADC: 16-bit read (0-65535), 3.3V reference
+ADC_MAX = 65535
+ADC_VREF = 3.3
 
 
-def read_voltage(channel=0):
-    """Read voltage from ADS1115 channel"""
-    raw = read_adc(channel)
-    return raw * 4.096 / 32767
+def read_voltage():
+    """Read voltage from Pico ADC on GP26"""
+    raw = adc.read_u16()
+    voltage = (raw / ADC_MAX) * ADC_VREF
+    return raw, voltage
 
 
 def read_depth():
     """
-    Read water depth from 4-20mA sensor via HW-685 and ADS1115.
+    Read water depth from 4-20mA sensor via HW-685.
     Returns dict with raw, voltage, depth_m, depth_pct.
     """
-    raw = read_adc(0)
-    voltage = raw * 4.096 / 32767
+    raw, voltage = read_voltage()
     
     # Clamp to valid range
     v_clamped = max(V_MIN, min(V_MAX, voltage))
@@ -57,10 +44,3 @@ def read_depth():
         'depth_m': round(depth_m, 2),
         'depth_pct': round(depth_pct, 1)
     }
-
-
-def scan_i2c():
-    """Scan I2C bus for devices"""
-    devices = i2c.scan()
-    print(f"I2C devices found: {[hex(d) for d in devices]}")
-    return devices

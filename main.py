@@ -2,7 +2,7 @@
 import time
 from machine import Pin
 
-from sensor import read_depth, scan_i2c
+from sensor import read_depth
 from ota import check_for_updates
 
 # Onboard LED for status
@@ -23,13 +23,6 @@ def blink(times=1, duration=0.1):
 
 def main():
     print("\n=== Cistern Monitor ===")
-    
-    # Check I2C devices
-    print("\nScanning I2C bus...")
-    devices = scan_i2c()
-    if 0x48 not in devices:
-        print("WARNING: ADS1115 not found at 0x48")
-        blink(5, 0.2)  # Error blink
     
     # Check for OTA updates
     print("\n--- OTA Check ---")
