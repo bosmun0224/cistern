@@ -34,9 +34,20 @@ graph LR
         GNDH[GND]
     end
 
+    subgraph ADS1115
+        A0[A0]
+        ADDR[ADDR]
+        VDDA[VDD]
+        GNDA[GND]
+        SDA[SDA]
+        SCL[SCL]
+    end
+
     subgraph Pico W
         VBUS[VBUS - 5V]
-        ADC0[GP26 / ADC0]
+        V3[3V3]
+        GP4[GP4 - SDA]
+        GP5[GP5 - SCL]
         GND1[GND]
         MCU[RP2040<br>+ WiFi]
     end
@@ -45,9 +56,15 @@ graph LR
     VBUS --> VCC
     RED --> VCC
     BLK --> IP
-    AOUT --> ADC0
+    AOUT --> A0
     GND1 --> GNDH
-    ADC0 --- MCU
+    GND1 --> GNDA
+    GNDA --> ADDR
+    V3 --> VDDA
+    SDA --> GP4
+    SCL --> GP5
+    GP4 --- MCU
+    GP5 --- MCU
 ```
 
 **Pin connections:**
@@ -56,7 +73,12 @@ graph LR
 |------|-----|
 | Pico VBUS (5V) | HW-685 VCC |
 | Pico GND | HW-685 GND |
-| HW-685 AOUT | Pico GP26 |
+| Pico GND | ADS1115 GND |
+| Pico 3V3 | ADS1115 VDD |
+| Pico GP4 | ADS1115 SDA |
+| Pico GP5 | ADS1115 SCL |
+| ADS1115 ADDR | GND (0x48) |
+| HW-685 AOUT | ADS1115 A0 |
 | Sensor Red | HW-685 VCC |
 | Sensor Black | HW-685 I+ |
 
