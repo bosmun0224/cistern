@@ -26,29 +26,36 @@ graph LR
         MCU[RP2040<br>+ WiFi]
     end
 
-    subgraph Converter
-        HW[HW-685<br>4-20mA → Voltage]
+    subgraph HW-685
+        VCC[VCC]
+        AOUT[AOUT]
+        GNDH[GND]
+        IP[I+]
     end
 
     subgraph Sensor
-        DS[4-20mA<br>Depth Sensor]
+        RED[Red Wire]
+        BLK[Black Wire]
     end
 
     USB -->|5V| VBUS
-    VBUS -->|VCC| HW
-    GND1 -->|GND| HW
-    DS -->|4-20mA| HW
-    HW -->|AOUT| ADC0
+    VBUS --> VCC
+    GND1 --> GNDH
+    RED --> VCC
+    BLK --> IP
+    AOUT --> ADC0
     ADC0 --- MCU
 ```
 
 **Pin connections:**
 
-| HW-685 | Pico W |
-|--------|--------|
-| VCC    | VBUS (5V) |
-| AOUT   | GP26   |
-| GND    | GND    |
+| From | To |
+|------|-----|
+| Pico VBUS (5V) | HW-685 VCC |
+| Pico GND | HW-685 GND |
+| HW-685 AOUT | Pico GP26 |
+| Sensor Red | HW-685 VCC |
+| Sensor Black | HW-685 I+ |
 
 ## Setup
 
