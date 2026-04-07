@@ -87,7 +87,7 @@ def save_config(ssid, password):
 
     # Set defaults if missing
     if 'OTA_BASE_URL' not in existing:
-        existing['OTA_BASE_URL'] = '""'
+        existing['OTA_BASE_URL'] = '"https://raw.githubusercontent.com/bosmun0224/cistern/main/"'
     if 'OTA_FILES' not in existing:
         existing['OTA_FILES'] = "['main.py', 'sensor.py', 'ota.py', 'firebase.py']"
     if 'FIREBASE_PROJECT_ID' not in existing:
