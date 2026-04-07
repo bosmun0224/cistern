@@ -21,7 +21,7 @@ graph TD
     SENSOR_RED[Sensor Red] --> VCC
     SENSOR_BLK[Sensor Black] --> IP[HW-685 I+]
 
-    AOUT[HW-685 AOUT] --> A0[ADS1115 A0]
+    VOUT[HW-685 VOUT] --> A0[ADS1115 A0]
 
     PICO_3V3[Pico W - 3V3] --> ADS_VDD[ADS1115 VDD]
     PICO_GND[Pico W - GND] --> ADS_GND[ADS1115 GND]
@@ -43,7 +43,7 @@ graph TD
 | Pico GP4 | ADS1115 SDA |
 | Pico GP5 | ADS1115 SCL |
 | ADS1115 ADDR | GND (0x48) |
-| HW-685 AOUT | ADS1115 A0 |
+| HW-685 VOUT | ADS1115 A0 |
 | Sensor Red | HW-685 VCC |
 | Sensor Black | HW-685 I+ |
 

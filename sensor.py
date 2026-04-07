@@ -1,5 +1,5 @@
 # sensor.py - Water depth sensor via HW-685 + ADS1115
-# HW-685 AOUT -> ADS1115 A0 (I2C) -> Pico W (GP4/GP5)
+# HW-685 VOUT -> ADS1115 A0 (I2C) -> Pico W (GP4/GP5)
 
 from machine import I2C, Pin
 import time
