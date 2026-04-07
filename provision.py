@@ -3,59 +3,43 @@
 
 import network
 import socket
+import select
 import time
 import os
+import struct
 
 AP_SSID = "Cistern-Setup"
 AP_PASSWORD = "cistern123"
 CONFIG_FILE = "config.py"
 
-SETUP_PAGE = """<!DOCTYPE html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Cistern Setup</title>
-    <style>
-        body { font-family: -apple-system, sans-serif; max-width: 400px; margin: 40px auto; padding: 0 20px; background: #1a1a2e; color: #eee; }
-        h1 { color: #0f3460; background: #e94560; padding: 12px; border-radius: 8px; text-align: center; }
-        label { display: block; margin-top: 16px; font-weight: bold; }
-        input { width: 100%; padding: 10px; margin-top: 4px; border: 1px solid #444; border-radius: 6px; box-sizing: border-box; font-size: 16px; background: #16213e; color: #eee; }
-        button { width: 100%; padding: 12px; margin-top: 24px; background: #e94560; color: #fff; border: none; border-radius: 6px; font-size: 18px; cursor: pointer; }
-        button:hover { background: #c73650; }
-        .status { text-align: center; margin-top: 16px; color: #aaa; }
-    </style>
-</head>
-<body>
-    <h1>Cistern Monitor</h1>
-    <form method="POST" action="/save">
-        <label>WiFi Network Name</label>
-        <input type="text" name="ssid" required>
-        <label>WiFi Password</label>
-        <input type="password" name="password" required>
-        <button type="submit">Save & Connect</button>
-    </form>
-    <p class="status">Connect to your WiFi to start monitoring</p>
-</body>
-</html>"""
+SETUP_PAGE = """\
+HTTP/1.1 200 OK\r
+Content-Type: text/html\r
+Connection: close\r
+\r
+<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cistern Setup</title><style>
+body{font-family:sans-serif;max-width:380px;margin:40px auto;padding:0 16px;background:#1a1a2e;color:#eee}
+h1{background:#e94560;padding:10px;border-radius:8px;text-align:center}
+label{display:block;margin-top:14px;font-weight:bold}
+input{width:100%;padding:8px;margin-top:4px;border:1px solid #444;border-radius:6px;box-sizing:border-box;font-size:16px;background:#16213e;color:#eee}
+button{width:100%;padding:10px;margin-top:20px;background:#e94560;color:#fff;border:none;border-radius:6px;font-size:18px}
+</style></head><body><h1>Cistern Monitor</h1>
+<form method="POST" action="/save">
+<label>WiFi Name</label><input name="ssid" required>
+<label>WiFi Password</label><input type="password" name="password" required>
+<button type="submit">Save &amp; Connect</button></form></body></html>"""
 
-SUCCESS_PAGE = """<!DOCTYPE html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Cistern Setup</title>
-    <style>
-        body { font-family: -apple-system, sans-serif; max-width: 400px; margin: 40px auto; padding: 0 20px; background: #1a1a2e; color: #eee; text-align: center; }
-        h1 { color: #0f3460; background: #0ead69; padding: 12px; border-radius: 8px; }
-        p { font-size: 18px; }
-    </style>
-</head>
-<body>
-    <h1>Saved!</h1>
-    <p>Connecting to <strong>{ssid}</strong>...</p>
-    <p>The device will reboot in a few seconds.</p>
-    <p>You can close this page and reconnect to your WiFi.</p>
-</body>
-</html>"""
+SUCCESS_PAGE = """\
+HTTP/1.1 200 OK\r
+Content-Type: text/html\r
+Connection: close\r
+\r
+<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Saved</title><style>body{font-family:sans-serif;max-width:380px;margin:40px auto;padding:0 16px;background:#1a1a2e;color:#eee;text-align:center}
+h1{background:#0ead69;padding:10px;border-radius:8px}</style></head>
+<body><h1>Saved!</h1><p>Connecting to <strong>{ssid}</strong>...</p>
+<p>Device will reboot. Reconnect to your WiFi.</p></body></html>"""
 
 
 def has_config():
