@@ -1,1 +1,2 @@
-project_id = "cistern-monitor"
+project_id      = "cistern-monitor"
+billing_account = "XXXXXX-XXXXXX-XXXXXX"
