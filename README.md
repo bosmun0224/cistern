@@ -82,7 +82,7 @@ A single-page dashboard in `dashboard/index.html` — deploy anywhere (GitHub Pa
 1. Edit `dashboard/index.html` and set `FIREBASE_PROJECT_ID` and `FIREBASE_API_KEY`
 2. Open in a browser or deploy
 
-Shows: water level gauge, depth, voltage, 24h history chart.
+Shows: water level gauge, depth, voltage, 24h history chart, device telemetry.
 ```
 
 ## OTA Updates
@@ -101,7 +101,7 @@ To push an update:
 |------|---------|
 | `boot.py` | WiFi connection or provisioning on startup |
 | `main.py` | Main loop: read sensor, post to Firebase |
-| `sensor.py` | ADS1115 driver + depth calculation |
+| `sensor.py` | ADS1115 driver, returns raw voltage |
 | `ota.py` | Over-the-air update logic |
 | `firebase.py` | Post readings to Firestore |
 | `provision.py` | WiFi AP provisioning (captive portal) |
@@ -112,13 +112,26 @@ To push an update:
 
 ## Calibration
 
-Edit `sensor.py` to match your sensor:
+Calibration values are stored in Firestore at `/config/calibration` and loaded by the dashboard on page load. This means you can recalibrate without redeploying anything.
 
-```python
-V_MIN = 0.66      # Voltage at 4mA (empty)
-V_MAX = 3.3       # Voltage at 20mA (full)
-DEPTH_MAX = 5.0   # Sensor max depth in meters
+Edit `tests/seed_calibration.py` to match your sensor and tank, then run:
+
+```bash
+python3 -m tests.seed_calibration
 ```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `v_min` | 0.66 | Voltage at 4mA (sensor reads 0 depth) |
+| `v_max` | 3.3 | Voltage at 20mA (sensor reads max depth) |
+| `depth_max_m` | 5.0 | Sensor maximum depth rating in meters |
+| `tank_radius_in` | 28.8 | Tank cross-section radius in inches |
+| `tank_length_in` | 133.0 | Tank body length in inches |
+| `tank_max_gal` | 1500 | Rated capacity in gallons |
+
+If the config document doesn't exist, the dashboard falls back to the defaults above.
+
+The Pico sends only raw voltage — all depth/volume computation happens client-side on the dashboard using the horizontal cylinder formula.
 
 ## License
 

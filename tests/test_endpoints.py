@@ -11,7 +11,7 @@ import os
 import unittest
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # Config values (from config.py.example — these are public/non-secret)
 FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "cistern-blomquist")
@@ -66,11 +66,13 @@ class TestFirestoreEndpoint(unittest.TestCase):
 
     def _make_valid_doc(self):
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        expire = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         return {
             "fields": {
                 "voltage": {"doubleValue": 1.98},
                 "raw": {"integerValue": "15848"},
                 "timestamp": {"timestampValue": ts},
+                "expireAt": {"timestampValue": expire},
             }
         }
 
@@ -86,11 +88,13 @@ class TestFirestoreEndpoint(unittest.TestCase):
     def test_post_missing_field_rejected(self):
         """A document missing 'raw' should be rejected by security rules."""
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        expire = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         doc = {
             "fields": {
                 "voltage": {"doubleValue": 1.98},
                 # raw is intentionally missing
                 "timestamp": {"timestampValue": ts},
+                "expireAt": {"timestampValue": expire},
             }
         }
         with self.assertRaises(urllib.error.HTTPError) as ctx:
@@ -100,11 +104,13 @@ class TestFirestoreEndpoint(unittest.TestCase):
     def test_post_wrong_type_rejected(self):
         """A document with voltage as string should be rejected."""
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        expire = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         doc = {
             "fields": {
                 "voltage": {"stringValue": "not_a_number"},
                 "raw": {"integerValue": "15848"},
                 "timestamp": {"timestampValue": ts},
+                "expireAt": {"timestampValue": expire},
             }
         }
         with self.assertRaises(urllib.error.HTTPError) as ctx:

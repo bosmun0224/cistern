@@ -80,6 +80,14 @@ def main():
             telemetry = get_device_telemetry()
             data.update(telemetry)
 
+            # Sanity check: skip posting if voltage is out of plausible range
+            v = data['voltage']
+            if v < 0.3 or v > 3.6:
+                print(f"Voltage out of range ({v}V) — sensor disconnected?")
+                blink(4, 0.15)
+                time.sleep(READ_INTERVAL)
+                continue
+
             print(f"Voltage: {data['voltage']}V | Raw: {data['raw']} | "
                   f"RSSI: {data.get('rssi', '?')}dBm | "
                   f"FreeMem: {data.get('free_mem', '?')}B")

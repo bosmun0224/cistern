@@ -91,6 +91,16 @@ def check_for_updates(auto_reboot=True):
         print("Already up to date")
         return False
     
+    # Semantic version comparison: only update if remote > local
+    try:
+        local_parts = tuple(int(x) for x in local.split('.'))
+        remote_parts = tuple(int(x) for x in remote.split('.'))
+        if remote_parts <= local_parts:
+            print("Already up to date")
+            return False
+    except (ValueError, AttributeError):
+        pass  # Fall through to update if versions aren't parseable
+    
     print(f"Update available: {local} -> {remote}")
     
     # Download all OTA files

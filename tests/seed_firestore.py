@@ -53,10 +53,12 @@ def raw_for_voltage(voltage):
 def make_reading(ts, voltage):
     """Build a Firestore REST document from voltage + timestamp."""
     raw = raw_for_voltage(voltage)
+    expire_at = ts + timedelta(days=30)
     fields = {
         "voltage": {"doubleValue": round(voltage, 4)},
         "raw": {"integerValue": str(raw)},
         "timestamp": {"timestampValue": ts.strftime("%Y-%m-%dT%H:%M:%S.000Z")},
+        "expireAt": {"timestampValue": expire_at.strftime("%Y-%m-%dT%H:%M:%S.000Z")},
         # Simulated device telemetry
         "rssi": {"integerValue": str(random.randint(-70, -45))},
         "free_mem": {"integerValue": str(random.randint(80000, 120000))},

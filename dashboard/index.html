@@ -366,17 +366,35 @@
         const FIREBASE_API_KEY = 'AIzaSyCMvUgbaUvekblMsrPx7Pg9sPrmgB4iPk4';
         const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
-        // ---- Tank geometry (Norwesco 1500 gal horizontal cylinder) ----
-        const TANK_RADIUS_IN = 28.8;
-        const TANK_LENGTH_IN = 133.0;
-        const TANK_MAX_GAL   = 1500;
-        const TANK_DIAMETER_IN = TANK_RADIUS_IN * 2;
-
-        // ---- Sensor calibration ----
-        const V_MIN = 0.66;
-        const V_MAX = 3.3;
-        const DEPTH_MAX_M = 5.0;
+        // ---- Calibration defaults (overridden by Firestore /config/calibration) ----
+        let TANK_RADIUS_IN = 28.8;
+        let TANK_LENGTH_IN = 133.0;
+        let TANK_MAX_GAL   = 1500;
+        let TANK_DIAMETER_IN = TANK_RADIUS_IN * 2;
+        let V_MIN = 0.66;
+        let V_MAX = 3.3;
+        let DEPTH_MAX_M = 5.0;
         const M_TO_IN = 39.3701;
+
+        async function loadCalibration() {
+            try {
+                const url = `${FIRESTORE_BASE}/config/calibration?key=${FIREBASE_API_KEY}`;
+                const res = await fetch(url);
+                if (!res.ok) return;
+                const data = await res.json();
+                const f = data.fields;
+                if (f.v_min) V_MIN = parseFloat(f.v_min.doubleValue);
+                if (f.v_max) V_MAX = parseFloat(f.v_max.doubleValue);
+                if (f.depth_max_m) DEPTH_MAX_M = parseFloat(f.depth_max_m.doubleValue);
+                if (f.tank_radius_in) TANK_RADIUS_IN = parseFloat(f.tank_radius_in.doubleValue);
+                if (f.tank_length_in) TANK_LENGTH_IN = parseFloat(f.tank_length_in.doubleValue);
+                if (f.tank_max_gal) TANK_MAX_GAL = parseInt(f.tank_max_gal.integerValue);
+                TANK_DIAMETER_IN = TANK_RADIUS_IN * 2;
+                console.log('Calibration loaded from Firestore');
+            } catch (e) {
+                console.warn('Using default calibration:', e);
+            }
+        }
 
         // ---- Derived calculations (all client-side) ----
         function voltageToDepth(voltage) {
@@ -740,6 +758,8 @@
 
         // ---- Init ----
         async function init() {
+            await loadCalibration();
+
             setupRangeButtons('waterRangeBtns', h => { waterRangeHours = h; redrawCharts(); });
             setupRangeButtons('deviceRangeBtns', h => { deviceRangeHours = h; redrawCharts(); });
 

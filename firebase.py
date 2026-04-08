@@ -32,6 +32,7 @@ def post_reading(data):
         "voltage": {"doubleValue": data['voltage']},
         "raw": {"integerValue": str(data['raw'])},
         "timestamp": {"timestampValue": _iso_timestamp()},
+        "expireAt": {"timestampValue": _iso_timestamp_offset(30)},
     }
 
     # Optional device telemetry
@@ -69,6 +70,14 @@ def post_reading(data):
 def _iso_timestamp():
     """Generate ISO 8601 timestamp from RTC"""
     t = time.localtime()
+    return "{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}Z".format(
+        t[0], t[1], t[2], t[3], t[4], t[5]
+    )
+
+
+def _iso_timestamp_offset(days):
+    """Generate ISO 8601 timestamp `days` in the future."""
+    t = time.localtime(time.time() + days * 86400)
     return "{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}Z".format(
         t[0], t[1], t[2], t[3], t[4], t[5]
     )

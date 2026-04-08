@@ -68,10 +68,15 @@ resource "google_firebaserules_ruleset" "firestore" {
         rules_version = '2';
         service cloud.firestore {
           match /databases/{database}/documents {
+            match /config/{doc} {
+              allow read: if true;
+              allow write: if false;
+            }
             match /readings/{reading} {
               allow read: if true;
-              allow create: if request.resource.data.keys().hasAll(['voltage', 'raw', 'timestamp'])
-                           && request.resource.data.voltage is number;
+              allow create: if request.resource.data.keys().hasAll(['voltage', 'raw', 'timestamp', 'expireAt'])
+                           && request.resource.data.voltage is number
+                           && request.resource.data.expireAt is timestamp;
               allow update, delete: if false;
             }
             match /{document=**} {
@@ -91,6 +96,21 @@ resource "google_firebaserules_release" "firestore" {
   project      = google_project.cistern.project_id
   name         = "cloud.firestore"
   ruleset_name = google_firebaserules_ruleset.firestore.name
+
+  depends_on = [google_firestore_database.default]
+}
+
+# --- Firestore TTL Policy (auto-delete docs after expireAt) ---
+resource "google_firestore_field" "readings_ttl" {
+  project    = google_project.cistern.project_id
+  database   = google_firestore_database.default.name
+  collection = "readings"
+  field      = "expireAt"
+
+  ttl_config {}
+
+  # Keep default index behavior
+  index_config {}
 
   depends_on = [google_firestore_database.default]
 }
