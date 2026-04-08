@@ -28,47 +28,48 @@
             padding: 24px;
             margin-bottom: 16px;
         }
+        .card h3 {
+            margin-bottom: 12px;
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
 
-        /* Water level gauge */
-        .gauge-container {
+        /* Horizontal cylinder tank */
+        .tank-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px 0;
+            padding: 16px 0;
         }
-        .gauge {
-            width: 120px;
-            height: 200px;
-            border: 3px solid #334155;
-            border-radius: 0 0 60px 60px;
-            position: relative;
-            overflow: hidden;
-            background: #0f172a;
-        }
-        .gauge-fill {
-            position: absolute;
-            bottom: 0;
+        .tank-svg {
             width: 100%;
-            background: linear-gradient(to top, #0369a1, #38bdf8);
-            transition: height 1s ease;
-            border-radius: 0 0 57px 57px;
+            max-width: 360px;
         }
-        .gauge-label {
-            font-size: 2.5rem;
-            font-weight: 700;
+        .tank-labels {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
             margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .tank-label {
+            text-align: center;
+        }
+        .tank-label-value {
+            font-size: 2rem;
+            font-weight: 700;
             color: #38bdf8;
         }
-        .gauge-sublabel {
-            font-size: 1rem;
+        .tank-label-unit {
+            font-size: 0.85rem;
             color: #94a3b8;
-            margin-top: 4px;
+            margin-top: 2px;
         }
 
         /* Stats */
         .stats {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 12px;
         }
         .stat {
@@ -78,17 +79,62 @@
             text-align: center;
         }
         .stat-value {
-            font-size: 1.5rem;
+            font-size: 1.3rem;
             font-weight: 700;
             color: #f8fafc;
         }
         .stat-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: #64748b;
             margin-top: 4px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+
+        /* Device telemetry */
+        .telemetry {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+            gap: 8px;
+        }
+        .telem-item {
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 10px 8px;
+            text-align: center;
+        }
+        .telem-icon {
+            font-size: 1.1rem;
+            margin-bottom: 2px;
+        }
+        .telem-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+        .telem-label {
+            font-size: 0.65rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .rssi-bar {
+            display: inline-flex;
+            gap: 2px;
+            align-items: flex-end;
+            height: 14px;
+        }
+        .rssi-bar span {
+            display: inline-block;
+            width: 3px;
+            background: #334155;
+            border-radius: 1px;
+        }
+        .rssi-bar span.active { background: #22c55e; }
+        .rssi-bar span:nth-child(1) { height: 4px; }
+        .rssi-bar span:nth-child(2) { height: 7px; }
+        .rssi-bar span:nth-child(3) { height: 10px; }
+        .rssi-bar span:nth-child(4) { height: 14px; }
 
         /* Chart */
         .chart-container {
@@ -120,9 +166,6 @@
         .status-text { font-size: 0.875rem; color: #94a3b8; }
 
         .last-updated { font-size: 0.75rem; color: #475569; text-align: center; margin-top: 12px; }
-
-        /* Loading */
-        .loading { text-align: center; padding: 40px; color: #64748b; }
     </style>
 </head>
 <body>
@@ -137,33 +180,106 @@
             <span class="status-text" id="lastSeen"></span>
         </div>
 
+        <!-- Horizontal cylinder tank -->
         <div class="card">
-            <div class="gauge-container">
-                <div class="gauge">
-                    <div class="gauge-fill" id="gaugeFill" style="height: 0%"></div>
+            <div class="tank-container">
+                <svg class="tank-svg" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <clipPath id="tankClip">
+                            <path d="M60,10 L340,10 C370,10 390,40 390,90 C390,140 370,170 340,170 L60,170 C30,170 10,140 10,90 C10,40 30,10 60,10 Z"/>
+                        </clipPath>
+                        <linearGradient id="waterGrad" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stop-color="#0369a1"/>
+                            <stop offset="100%" stop-color="#38bdf8"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- Tank outline -->
+                    <path d="M60,10 L340,10 C370,10 390,40 390,90 C390,140 370,170 340,170 L60,170 C30,170 10,140 10,90 C10,40 30,10 60,10 Z"
+                          fill="#0f172a" stroke="#334155" stroke-width="3"/>
+                    <!-- Water fill (clipped to tank shape) -->
+                    <g clip-path="url(#tankClip)">
+                        <rect id="waterFill" x="0" y="170" width="400" height="0" fill="url(#waterGrad)" opacity="0.85"/>
+                        <!-- Wave line at water surface -->
+                        <path id="wavePath" d="" stroke="rgba(255,255,255,0.15)" stroke-width="2" fill="none"/>
+                    </g>
+                    <!-- Ribs (decorative lines like the Norwesco tank) -->
+                    <g stroke="#334155" stroke-width="1" opacity="0.4">
+                        <line x1="80" y1="12" x2="80" y2="168"/>
+                        <line x1="130" y1="12" x2="130" y2="168"/>
+                        <line x1="180" y1="12" x2="180" y2="168"/>
+                        <line x1="230" y1="12" x2="230" y2="168"/>
+                        <line x1="280" y1="12" x2="280" y2="168"/>
+                        <line x1="320" y1="12" x2="320" y2="168"/>
+                    </g>
+                    <!-- Percentage text centered in tank -->
+                    <text id="tankPctText" x="200" y="95" text-anchor="middle" dominant-baseline="central"
+                          font-size="36" font-weight="700" fill="#e2e8f0" style="text-shadow: 0 2px 8px rgba(0,0,0,0.6);">--%</text>
+                </svg>
+                <div class="tank-labels">
+                    <div class="tank-label">
+                        <div class="tank-label-value" id="gallonsDisplay">--</div>
+                        <div class="tank-label-unit">gallons</div>
+                    </div>
+                    <div class="tank-label">
+                        <div class="tank-label-value" id="depthDisplay">--</div>
+                        <div class="tank-label-unit">inches</div>
+                    </div>
                 </div>
-                <div class="gauge-label" id="levelPct">--%</div>
-                <div class="gauge-sublabel" id="levelDepth">-- m</div>
             </div>
         </div>
 
         <div class="card">
             <div class="stats">
                 <div class="stat">
-                    <div class="stat-value" id="voltage">--</div>
+                    <div class="stat-value" id="gallonsStat">--</div>
+                    <div class="stat-label">Gallons</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="voltageStat">--</div>
                     <div class="stat-label">Voltage</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value" id="rawAdc">--</div>
+                    <div class="stat-value" id="rawAdcStat">--</div>
                     <div class="stat-label">Raw ADC</div>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <h3 style="margin-bottom: 12px; color: #94a3b8; font-size: 0.875rem;">Last 24 Hours</h3>
+            <h3>Last 24 Hours</h3>
             <div class="chart-container">
                 <canvas id="chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Device telemetry -->
+        <div class="card" id="telemetryCard" style="display:none;">
+            <h3>Device</h3>
+            <div class="telemetry">
+                <div class="telem-item">
+                    <div class="telem-icon" id="rssiIcon">
+                        <div class="rssi-bar">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                    </div>
+                    <div class="telem-value" id="rssiValue">--</div>
+                    <div class="telem-label">WiFi</div>
+                </div>
+                <div class="telem-item">
+                    <div class="telem-icon">&#x1F9E0;</div>
+                    <div class="telem-value" id="cpuValue">--</div>
+                    <div class="telem-label">CPU MHz</div>
+                </div>
+                <div class="telem-item">
+                    <div class="telem-icon">&#x1F4BE;</div>
+                    <div class="telem-value" id="memValue">--</div>
+                    <div class="telem-label">Free RAM</div>
+                </div>
+                <div class="telem-item">
+                    <div class="telem-icon">&#x1F4C1;</div>
+                    <div class="telem-value" id="storageValue">--</div>
+                    <div class="telem-label">Storage</div>
+                </div>
             </div>
         </div>
 
@@ -171,43 +287,73 @@
     </div>
 
     <script>
-        // Firebase config - replace with your values
+        // ---- Config ----
         const FIREBASE_PROJECT_ID = 'cistern-blomquist';
         const FIREBASE_API_KEY = 'AIzaSyCMvUgbaUvekblMsrPx7Pg9sPrmgB4iPk4';
-
         const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
-        // Fetch latest reading
+        // ---- Tank geometry (Norwesco 1500 gal horizontal cylinder) ----
+        const TANK_RADIUS_IN = 28.8;
+        const TANK_LENGTH_IN = 133.0;
+        const TANK_MAX_GAL   = 1500;
+        const TANK_DIAMETER_IN = TANK_RADIUS_IN * 2;
+
+        // ---- Sensor calibration ----
+        const V_MIN = 0.66;
+        const V_MAX = 3.3;
+        const DEPTH_MAX_M = 5.0;
+        const M_TO_IN = 39.3701;
+
+        // ---- Derived calculations (all client-side) ----
+        function voltageToDepth(voltage) {
+            const v = Math.max(V_MIN, Math.min(V_MAX, voltage));
+            const depth_m = ((v - V_MIN) / (V_MAX - V_MIN)) * DEPTH_MAX_M;
+            const depth_in = depth_m * M_TO_IN;
+            return { depth_m, depth_in };
+        }
+
+        function depthToGallons(depth_in) {
+            const R = TANK_RADIUS_IN;
+            const h = Math.max(0, Math.min(TANK_DIAMETER_IN, depth_in));
+            if (h <= 0) return 0;
+            if (h >= TANK_DIAMETER_IN) return TANK_MAX_GAL;
+            const area = R * R * Math.acos((R - h) / R) - (R - h) * Math.sqrt(2 * R * h - h * h);
+            return (area * TANK_LENGTH_IN) / 231.0;
+        }
+
+        function depthToPercent(depth_in) {
+            return (depthToGallons(depth_in) / TANK_MAX_GAL) * 100;
+        }
+
+        function enrichReading(raw) {
+            const { depth_m, depth_in } = voltageToDepth(raw.voltage);
+            const gallons = depthToGallons(depth_in);
+            const depth_pct = depthToPercent(depth_in);
+            return { ...raw, depth_m, depth_in, gallons, depth_pct };
+        }
+
+        // ---- Firestore API ----
         async function fetchLatest() {
             const url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp desc&pageSize=1`;
             try {
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.documents && data.documents.length > 0) {
-                    return parseDoc(data.documents[0]);
+                    return enrichReading(parseDoc(data.documents[0]));
                 }
-            } catch (e) {
-                console.error('Fetch error:', e);
-            }
+            } catch (e) { console.error('Fetch error:', e); }
             return null;
         }
 
-        // Fetch last 24h of readings
         async function fetchHistory() {
-            const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp asc&where.fieldFilter.field.fieldPath=timestamp&where.fieldFilter.op=GREATER_THAN_OR_EQUAL&where.fieldFilter.value.timestampValue=${since}`;
-            
             try {
-                // Simpler query - just get recent docs
-                const url2 = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp desc&pageSize=288`;
-                const res = await fetch(url2);
+                const url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp desc&pageSize=288`;
+                const res = await fetch(url);
                 const data = await res.json();
                 if (data.documents) {
-                    return data.documents.map(parseDoc).reverse();
+                    return data.documents.map(d => enrichReading(parseDoc(d))).reverse();
                 }
-            } catch (e) {
-                console.error('History fetch error:', e);
-            }
+            } catch (e) { console.error('History fetch error:', e); }
             return [];
         }
 
@@ -215,14 +361,69 @@
             const f = doc.fields;
             return {
                 voltage: parseFloat(f.voltage?.doubleValue || 0),
-                depth_m: parseFloat(f.depth_m?.doubleValue || 0),
-                depth_pct: parseFloat(f.depth_pct?.doubleValue || 0),
                 raw: parseInt(f.raw?.integerValue || 0),
-                timestamp: new Date(f.timestamp?.timestampValue || 0)
+                timestamp: new Date(f.timestamp?.timestampValue || 0),
+                rssi: f.rssi ? parseInt(f.rssi.integerValue) : null,
+                free_mem: f.free_mem ? parseInt(f.free_mem.integerValue) : null,
+                cpu_freq: f.cpu_freq ? parseInt(f.cpu_freq.integerValue) : null,
+                total_storage: f.total_storage ? parseInt(f.total_storage.integerValue) : null,
+                used_storage: f.used_storage ? parseInt(f.used_storage.integerValue) : null,
             };
         }
 
-        // Update the UI
+        // ---- Tank SVG ----
+        function updateTankFill(pct) {
+            // pct is volume-based; map back to physical depth for visual fill
+            const targetGal = (pct / 100) * TANK_MAX_GAL;
+            let lo = 0, hi = TANK_DIAMETER_IN;
+            for (let i = 0; i < 30; i++) {
+                const mid = (lo + hi) / 2;
+                if (depthToGallons(mid) < targetGal) lo = mid;
+                else hi = mid;
+            }
+            const depth_in = (lo + hi) / 2;
+            const svgH = 160;
+            const fillH = (depth_in / TANK_DIAMETER_IN) * svgH;
+            const fillY = 170 - fillH;
+
+            document.getElementById('waterFill').setAttribute('y', fillY);
+            document.getElementById('waterFill').setAttribute('height', fillH);
+
+            const wave = document.getElementById('wavePath');
+            if (fillH > 2) {
+                let d = `M10,${fillY}`;
+                for (let x = 10; x <= 390; x += 10) {
+                    d += ` Q${x + 5},${fillY - 3} ${x + 10},${fillY}`;
+                }
+                wave.setAttribute('d', d);
+            } else {
+                wave.setAttribute('d', '');
+            }
+
+            document.getElementById('tankPctText').textContent = `${pct.toFixed(0)}%`;
+        }
+
+        // ---- RSSI bars ----
+        function updateRssiBars(rssi) {
+            const bars = document.querySelectorAll('#rssiIcon .rssi-bar span');
+            let level = 0;
+            if (rssi !== null) {
+                if (rssi >= -50) level = 4;
+                else if (rssi >= -60) level = 3;
+                else if (rssi >= -70) level = 2;
+                else level = 1;
+            }
+            bars.forEach((bar, i) => bar.classList.toggle('active', i < level));
+        }
+
+        function formatBytes(bytes) {
+            if (bytes == null) return '--';
+            if (bytes < 1024) return bytes + 'B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + 'K';
+            return (bytes / (1024 * 1024)).toFixed(1) + 'M';
+        }
+
+        // ---- UI Update ----
         function updateUI(reading) {
             if (!reading) {
                 document.getElementById('statusDot').className = 'status-dot offline';
@@ -230,7 +431,6 @@
                 return;
             }
 
-            // Check if reading is recent (within 5 minutes)
             const age = Date.now() - reading.timestamp.getTime();
             const isOnline = age < 5 * 60 * 1000;
 
@@ -238,12 +438,30 @@
             document.getElementById('statusText').textContent = isOnline ? 'Online' : 'Offline';
             document.getElementById('lastSeen').textContent = timeAgo(reading.timestamp);
 
-            document.getElementById('gaugeFill').style.height = `${reading.depth_pct}%`;
-            document.getElementById('levelPct').textContent = `${reading.depth_pct.toFixed(1)}%`;
-            document.getElementById('levelDepth').textContent = `${reading.depth_m.toFixed(2)} m`;
-            document.getElementById('voltage').textContent = `${reading.voltage.toFixed(3)}V`;
-            document.getElementById('rawAdc').textContent = reading.raw;
+            updateTankFill(reading.depth_pct);
+            document.getElementById('gallonsDisplay').textContent = Math.round(reading.gallons);
+            document.getElementById('depthDisplay').textContent = reading.depth_in.toFixed(1);
+
+            document.getElementById('gallonsStat').textContent = Math.round(reading.gallons);
+            document.getElementById('voltageStat').textContent = `${reading.voltage.toFixed(3)}V`;
+            document.getElementById('rawAdcStat').textContent = reading.raw;
             document.getElementById('updatedAt').textContent = `Last updated: ${reading.timestamp.toLocaleString()}`;
+
+            // Device telemetry
+            const hasTelemetry = reading.rssi !== null || reading.free_mem !== null;
+            document.getElementById('telemetryCard').style.display = hasTelemetry ? 'block' : 'none';
+            if (hasTelemetry) {
+                document.getElementById('rssiValue').textContent = reading.rssi !== null ? `${reading.rssi} dBm` : '--';
+                updateRssiBars(reading.rssi);
+                document.getElementById('cpuValue').textContent = reading.cpu_freq !== null ? reading.cpu_freq : '--';
+                document.getElementById('memValue').textContent = formatBytes(reading.free_mem);
+                if (reading.total_storage !== null && reading.used_storage !== null) {
+                    const pct = ((reading.used_storage / reading.total_storage) * 100).toFixed(0);
+                    document.getElementById('storageValue').textContent = `${pct}%`;
+                } else {
+                    document.getElementById('storageValue').textContent = '--';
+                }
+            }
         }
 
         function timeAgo(date) {
@@ -254,7 +472,7 @@
             return `${Math.floor(seconds / 86400)}d ago`;
         }
 
-        // Simple canvas chart
+        // ---- Chart ----
         function drawChart(readings) {
             const canvas = document.getElementById('chart');
             const ctx = canvas.getContext('2d');
@@ -264,11 +482,10 @@
 
             const w = canvas.offsetWidth;
             const h = canvas.offsetHeight;
-            const pad = { top: 10, right: 10, bottom: 25, left: 35 };
+            const pad = { top: 10, right: 10, bottom: 25, left: 40 };
             const chartW = w - pad.left - pad.right;
             const chartH = h - pad.top - pad.bottom;
 
-            // Clear
             ctx.clearRect(0, 0, w, h);
 
             if (readings.length < 2) {
@@ -279,14 +496,13 @@
                 return;
             }
 
-            const maxPct = 100;
-            const minPct = 0;
+            const maxGal = TANK_MAX_GAL;
+            const steps = 4;
 
-            // Grid lines
             ctx.strokeStyle = '#1e293b';
             ctx.lineWidth = 1;
-            for (let i = 0; i <= 4; i++) {
-                const y = pad.top + (chartH / 4) * i;
+            for (let i = 0; i <= steps; i++) {
+                const y = pad.top + (chartH / steps) * i;
                 ctx.beginPath();
                 ctx.moveTo(pad.left, y);
                 ctx.lineTo(w - pad.right, y);
@@ -295,10 +511,9 @@
                 ctx.fillStyle = '#475569';
                 ctx.font = '10px sans-serif';
                 ctx.textAlign = 'right';
-                ctx.fillText(`${100 - i * 25}%`, pad.left - 5, y + 4);
+                ctx.fillText(`${maxGal - (maxGal / steps) * i}`, pad.left - 5, y + 4);
             }
 
-            // Time labels
             ctx.fillStyle = '#475569';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'center';
@@ -307,29 +522,25 @@
             ctx.fillText(first.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), pad.left, h - 5);
             ctx.fillText(last.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), w - pad.right, h - 5);
 
-            // Line
             ctx.strokeStyle = '#38bdf8';
             ctx.lineWidth = 2;
             ctx.beginPath();
             readings.forEach((r, i) => {
                 const x = pad.left + (i / (readings.length - 1)) * chartW;
-                const y = pad.top + chartH - (r.depth_pct / maxPct) * chartH;
+                const y = pad.top + chartH - (r.gallons / maxGal) * chartH;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             });
             ctx.stroke();
 
-            // Fill under line
-            const lastX = pad.left + chartW;
-            const lastY = pad.top + chartH - (readings[readings.length - 1].depth_pct / maxPct) * chartH;
-            ctx.lineTo(lastX, pad.top + chartH);
+            ctx.lineTo(pad.left + chartW, pad.top + chartH);
             ctx.lineTo(pad.left, pad.top + chartH);
             ctx.closePath();
             ctx.fillStyle = 'rgba(56, 189, 248, 0.1)';
             ctx.fill();
         }
 
-        // Init
+        // ---- Init ----
         async function init() {
             const latest = await fetchLatest();
             updateUI(latest);
@@ -337,7 +548,6 @@
             const history = await fetchHistory();
             drawChart(history);
 
-            // Refresh every 60 seconds
             setInterval(async () => {
                 const r = await fetchLatest();
                 updateUI(r);

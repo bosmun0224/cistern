@@ -19,7 +19,7 @@ def _get_url(collection):
 def post_reading(data):
     """
     Post a sensor reading to Firestore.
-    data: dict with voltage, depth_m, depth_pct, raw
+    data: dict with voltage, raw, and device telemetry fields
     """
     if not FIREBASE_PROJECT_ID:
         print("Firebase not configured")
@@ -28,15 +28,21 @@ def post_reading(data):
     url = _get_url("readings") + "?key=" + FIREBASE_API_KEY
 
     # Firestore REST API document format
-    doc = {
-        "fields": {
-            "voltage": {"doubleValue": data['voltage']},
-            "depth_m": {"doubleValue": data['depth_m']},
-            "depth_pct": {"doubleValue": data['depth_pct']},
-            "raw": {"integerValue": str(data['raw'])},
-            "timestamp": {"timestampValue": _iso_timestamp()}
-        }
+    fields = {
+        "voltage": {"doubleValue": data['voltage']},
+        "raw": {"integerValue": str(data['raw'])},
+        "timestamp": {"timestampValue": _iso_timestamp()},
     }
+
+    # Optional device telemetry
+    for key in ('rssi', 'free_mem', 'used_storage', 'total_storage', 'cpu_freq'):
+        if key in data:
+            if isinstance(data[key], float):
+                fields[key] = {"doubleValue": data[key]}
+            else:
+                fields[key] = {"integerValue": str(data[key])}
+
+    doc = {"fields": fields}
 
     try:
         import ujson
@@ -48,7 +54,7 @@ def post_reading(data):
     try:
         r = urequests.post(url, data=body, headers={"Content-Type": "application/json"})
         if r.status_code in (200, 201):
-            print(f"  Posted to Firebase: {data['depth_pct']}%")
+            print(f"  Posted to Firebase: {data['voltage']}V")
             r.close()
             return True
         else:

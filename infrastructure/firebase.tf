@@ -30,6 +30,12 @@ resource "google_project_service" "firebaserules" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "identitytoolkit" {
+  project            = google_project.cistern.project_id
+  service            = "identitytoolkit.googleapis.com"
+  disable_on_destroy = false
+}
+
 # --- Firebase Project ---
 resource "google_firebase_project" "default" {
   provider = google-beta
@@ -64,10 +70,8 @@ resource "google_firebaserules_ruleset" "firestore" {
           match /databases/{database}/documents {
             match /readings/{reading} {
               allow read: if true;
-              allow create: if request.resource.data.keys().hasAll(['voltage', 'depth_m', 'depth_pct', 'raw', 'timestamp'])
-                           && request.resource.data.voltage is number
-                           && request.resource.data.depth_m is number
-                           && request.resource.data.depth_pct is number;
+              allow create: if request.resource.data.keys().hasAll(['voltage', 'raw', 'timestamp'])
+                           && request.resource.data.voltage is number;
               allow update, delete: if false;
             }
             match /{document=**} {
@@ -85,10 +89,32 @@ resource "google_firebaserules_ruleset" "firestore" {
 resource "google_firebaserules_release" "firestore" {
   provider     = google-beta
   project      = google_project.cistern.project_id
-  name         = "cloud.firestore/database=default"
+  name         = "cloud.firestore"
   ruleset_name = google_firebaserules_ruleset.firestore.name
 
   depends_on = [google_firestore_database.default]
+}
+
+# --- Firebase Web App (required for API-key auth against Firestore) ---
+resource "google_firebase_web_app" "dashboard" {
+  provider     = google-beta
+  project      = google_project.cistern.project_id
+  display_name = "Cistern Dashboard"
+
+  depends_on = [google_firebase_project.default]
+}
+
+# --- Firebase Auth (Identity Platform with anonymous sign-in) ---
+resource "google_identity_platform_config" "auth" {
+  project = google_project.cistern.project_id
+
+  sign_in {
+    anonymous {
+      enabled = true
+    }
+  }
+
+  depends_on = [google_project_service.identitytoolkit, google_firebase_project.default]
 }
 
 # --- API Key (for Pico + Dashboard) ---
@@ -101,7 +127,29 @@ resource "google_apikeys_key" "cistern_key" {
     api_targets {
       service = "firestore.googleapis.com"
     }
+    api_targets {
+      service = "datastore.googleapis.com"
+    }
+    api_targets {
+      service = "identitytoolkit.googleapis.com"
+    }
   }
 
   depends_on = [google_project_service.apikeys]
+}
+
+# --- Audit Logging (Firestore data access via datastore API) ---
+resource "google_project_iam_audit_config" "firestore" {
+  project = google_project.cistern.project_id
+  service = "datastore.googleapis.com"
+
+  audit_log_config {
+    log_type = "ADMIN_READ"
+  }
+  audit_log_config {
+    log_type = "DATA_READ"
+  }
+  audit_log_config {
+    log_type = "DATA_WRITE"
+  }
 }

@@ -12,11 +12,6 @@ ADS1115_ADDR = 0x48
 REG_CONVERSION = 0x00
 REG_CONFIG = 0x01
 
-# Calibration - adjust these for your setup
-V_MIN = 0.66      # Voltage at 4mA (0 depth)
-V_MAX = 3.3       # Voltage at 20mA (max depth)
-DEPTH_MAX = 5.0   # Sensor max depth in meters
-
 
 def scan_i2c():
     """Scan I2C bus for devices"""
@@ -45,23 +40,14 @@ def read_voltage(channel=0):
     return raw, voltage
 
 
-def read_depth():
+def read_sensor():
     """
-    Read water depth from 4-20mA sensor via HW-685 and ADS1115.
-    Returns dict with raw, voltage, depth_m, depth_pct.
+    Read raw sensor data from ADS1115.
+    Returns dict with raw ADC value and voltage.
+    All depth/volume computation is done on the dashboard.
     """
     raw, voltage = read_voltage(0)
-    
-    # Clamp to valid range
-    v_clamped = max(V_MIN, min(V_MAX, voltage))
-    
-    # Linear conversion to depth
-    depth_m = ((v_clamped - V_MIN) / (V_MAX - V_MIN)) * DEPTH_MAX
-    depth_pct = (depth_m / DEPTH_MAX) * 100
-    
     return {
         'raw': raw,
-        'voltage': round(voltage, 3),
-        'depth_m': round(depth_m, 2),
-        'depth_pct': round(depth_pct, 1)
+        'voltage': round(voltage, 4),
     }

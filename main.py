@@ -1,8 +1,10 @@
 # main.py - Main application entry point
 import time
-from machine import Pin
+import gc
+import os
+from machine import Pin, freq
 
-from sensor import read_depth, scan_i2c
+from sensor import read_sensor, scan_i2c
 from ota import check_for_updates
 from firebase import post_reading
 
@@ -20,6 +22,40 @@ def blink(times=1, duration=0.1):
         time.sleep(duration)
         led.off()
         time.sleep(duration)
+
+
+def get_device_telemetry():
+    """Gather device stats to send alongside sensor data."""
+    import network
+    telemetry = {}
+
+    # WiFi RSSI
+    try:
+        wlan = network.WLAN(network.STA_IF)
+        if wlan.isconnected():
+            telemetry['rssi'] = wlan.status('rssi')
+    except Exception:
+        pass
+
+    # Free memory
+    gc.collect()
+    telemetry['free_mem'] = gc.mem_free()
+
+    # CPU frequency in MHz
+    telemetry['cpu_freq'] = freq() // 1_000_000
+
+    # Storage (flash filesystem)
+    try:
+        st = os.statvfs('/')
+        block_size = st[0]
+        total_blocks = st[2]
+        free_blocks = st[3]
+        telemetry['total_storage'] = block_size * total_blocks
+        telemetry['used_storage'] = block_size * (total_blocks - free_blocks)
+    except Exception:
+        pass
+
+    return telemetry
 
 
 def main():
@@ -40,9 +76,13 @@ def main():
     print("\n--- Starting sensor loop ---")
     while True:
         try:
-            data = read_depth()
-            print(f"Depth: {data['depth_m']}m ({data['depth_pct']}%) | "
-                  f"Voltage: {data['voltage']}V | Raw: {data['raw']}")
+            data = read_sensor()
+            telemetry = get_device_telemetry()
+            data.update(telemetry)
+
+            print(f"Voltage: {data['voltage']}V | Raw: {data['raw']} | "
+                  f"RSSI: {data.get('rssi', '?')}dBm | "
+                  f"FreeMem: {data.get('free_mem', '?')}B")
             
             blink(1)  # Heartbeat
             
