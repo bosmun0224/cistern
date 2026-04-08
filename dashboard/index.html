@@ -345,10 +345,10 @@
                     <div class="telem-value" id="rssiValue">--</div>
                     <div class="telem-label">WiFi</div>
                 </div>
-                <div class="telem-item" data-series="cpu_freq" style="--series-color:#fb923c">
-                    <div class="telem-icon">&#x1F9E0;</div>
+                <div class="telem-item" data-series="cpu_temp" style="--series-color:#fb923c">
+                    <div class="telem-icon">&#x1F321;</div>
                     <div class="telem-value" id="cpuValue">--</div>
-                    <div class="telem-label">CPU</div>
+                    <div class="telem-label">Temp</div>
                 </div>
                 <div class="telem-item" data-series="free_mem" style="--series-color:#a78bfa">
                     <div class="telem-icon">&#x1F4BE;</div>
@@ -475,7 +475,7 @@
                 timestamp: new Date(f.timestamp?.timestampValue || 0),
                 rssi: f.rssi ? parseInt(f.rssi.integerValue) : null,
                 free_mem: f.free_mem ? parseInt(f.free_mem.integerValue) : null,
-                cpu_freq: f.cpu_freq ? parseInt(f.cpu_freq.integerValue) : null,
+                cpu_temp: f.cpu_temp ? parseFloat(f.cpu_temp.doubleValue || f.cpu_temp.integerValue) : null,
                 total_storage: f.total_storage ? parseInt(f.total_storage.integerValue) : null,
                 used_storage: f.used_storage ? parseInt(f.used_storage.integerValue) : null,
             };
@@ -570,10 +570,10 @@
                 }
                 updateRssiBars(reading.rssi);
 
-                // CPU: 0-250MHz scale
-                if (reading.cpu_freq !== null) {
-                    const cpuPct = Math.round(Math.min(100, (reading.cpu_freq / 250) * 100));
-                    document.getElementById('cpuValue').textContent = `${cpuPct}%`;
+                // CPU temp: 0-70°C scale
+                if (reading.cpu_temp !== null) {
+                    const tempPct = Math.round(Math.min(100, (reading.cpu_temp / 70) * 100));
+                    document.getElementById('cpuValue').textContent = `${tempPct}%`;
                 } else {
                     document.getElementById('cpuValue').textContent = '--';
                 }
@@ -688,15 +688,15 @@
               normalize: v => v != null ? (Math.max(-90, Math.min(-30, v)) + 90) / 60 : null },
             { key: 'free_mem', label: 'Free RAM',   color: '#a78bfa', unit: 'KB',
               normalize: v => v != null ? Math.min(v / 200000, 1) : null },
-            { key: 'cpu_freq', label: 'CPU',        color: '#fb923c', unit: 'MHz',
-              normalize: v => v != null ? Math.min(v / 250, 1) : null },
+            { key: 'cpu_temp', label: 'Temp',       color: '#fb923c', unit: '°C',
+              normalize: v => v != null ? Math.min(v / 70, 1) : null },
             { key: 'storage_pct', label: 'Storage %', color: '#f472b6', unit: '%',
               normalize: v => v != null ? v / 100 : null },
         ];
 
         function drawDeviceChart(readings, rangeHours) {
             const card = document.getElementById('deviceChartCard');
-            const hasTelem = readings.some(r => r.rssi !== null || r.free_mem !== null);
+            const hasTelem = allHistory.some(r => r.rssi !== null || r.free_mem !== null);
             card.style.display = hasTelem ? 'block' : 'none';
             if (!hasTelem) return;
 

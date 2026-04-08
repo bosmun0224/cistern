@@ -107,7 +107,7 @@ def test_firebase_post():
     data = read_sensor()
     data['rssi'] = -50  # dummy telemetry
     data['free_mem'] = 100000
-    data['cpu_freq'] = 125
+    data['cpu_temp'] = 30.5
     result = post_reading(data)
     return result is True
 
@@ -148,11 +148,13 @@ def test_storage():
     return total > 0 and free > 0
 
 
-def test_cpu_freq():
-    from machine import freq
-    mhz = freq() // 1_000_000
-    print(f"         cpu_freq={mhz} MHz")
-    return mhz > 0
+def test_cpu_temp():
+    from machine import ADC
+    adc = ADC(4)
+    raw = adc.read_u16()
+    temp = round(27 - (raw * 3.3 / 65535 - 0.706) / 0.001721, 1)
+    print(f"         cpu_temp={temp} °C")
+    return 0 < temp < 85
 
 
 # -------------------------------------------------------------------
@@ -182,7 +184,7 @@ test("version.txt reachable", test_ota_version_reachable)
 print("[telemetry]")
 test("free memory > 0", test_free_memory)
 test("storage readable", test_storage)
-test("CPU freq > 0", test_cpu_freq)
+test("CPU temp in range", test_cpu_temp)
 
 print(f"\n{'='*40}")
 print(f"  {passed} passed, {failed} failed")

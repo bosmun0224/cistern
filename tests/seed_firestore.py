@@ -62,7 +62,7 @@ def make_reading(ts, voltage):
         # Simulated device telemetry
         "rssi": {"integerValue": str(random.randint(-70, -45))},
         "free_mem": {"integerValue": str(random.randint(80000, 120000))},
-        "cpu_freq": {"integerValue": "125"},
+        "cpu_temp": {"doubleValue": round(random.uniform(25, 45), 1)},
         "total_storage": {"integerValue": "1048576"},
         "used_storage": {"integerValue": str(random.randint(200000, 400000))},
     }
