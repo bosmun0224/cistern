@@ -32,13 +32,16 @@ TANK_RADIUS_IN = 28.8
 TANK_DIAMETER_IN = TANK_RADIUS_IN * 2
 M_TO_IN = 39.3701
 
+# The tank is only ~1.46m tall; max realistic depth in the sensor's 0-5m range
+TANK_DEPTH_M = TANK_DIAMETER_IN / M_TO_IN  # ≈ 1.463m
+
 NUM_READINGS = 288
 INTERVAL_MIN = 5
 
 
 def voltage_for_pct(pct):
-    """Return a voltage corresponding to roughly `pct`% of DEPTH_MAX_M."""
-    depth_m = (pct / 100) * DEPTH_MAX_M
+    """Return a voltage corresponding to `pct`% of the actual tank height."""
+    depth_m = (pct / 100) * TANK_DEPTH_M
     return V_MIN + (depth_m / DEPTH_MAX_M) * (V_MAX - V_MIN)
 
 
