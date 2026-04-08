@@ -280,22 +280,6 @@
             </div>
         </div>
 
-        <div class="card">
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-value" id="gallonsStat">--</div>
-                    <div class="stat-label">Gallons</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="voltageStat">--</div>
-                    <div class="stat-label">Voltage</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="rawAdcStat">--</div>
-                    <div class="stat-label">Raw ADC</div>
-                </div>
-            </div>
-        </div>
 
         <div class="card">
             <div class="chart-header">
@@ -552,9 +536,6 @@
             document.getElementById('gallonsDisplay').textContent = Math.round(reading.gallons);
             document.getElementById('depthDisplay').textContent = reading.depth_in.toFixed(1);
 
-            document.getElementById('gallonsStat').textContent = Math.round(reading.gallons);
-            document.getElementById('voltageStat').textContent = `${reading.voltage.toFixed(3)}V`;
-            document.getElementById('rawAdcStat').textContent = reading.raw;
             document.getElementById('updatedAt').textContent = `Last updated: ${reading.timestamp.toLocaleString()}`;
 
             // Device telemetry (all as percentages)
