@@ -102,6 +102,12 @@
             border-radius: 10px;
             padding: 10px 8px;
             text-align: center;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.15s;
+        }
+        .telem-item.active {
+            border-color: var(--series-color, #38bdf8);
         }
         .telem-icon {
             font-size: 1.1rem;
@@ -329,8 +335,8 @@
         <!-- Device telemetry -->
         <div class="card" id="telemetryCard" style="display:none;">
             <h3>Device</h3>
-            <div class="telemetry">
-                <div class="telem-item">
+            <div class="telemetry" id="telemetryGrid">
+                <div class="telem-item active" data-series="rssi" style="--series-color:#22c55e">
                     <div class="telem-icon" id="rssiIcon">
                         <div class="rssi-bar">
                             <span></span><span></span><span></span><span></span>
@@ -339,17 +345,17 @@
                     <div class="telem-value" id="rssiValue">--</div>
                     <div class="telem-label">WiFi</div>
                 </div>
-                <div class="telem-item">
+                <div class="telem-item" data-series="cpu_freq" style="--series-color:#fb923c">
                     <div class="telem-icon">&#x1F9E0;</div>
                     <div class="telem-value" id="cpuValue">--</div>
-                    <div class="telem-label">CPU MHz</div>
+                    <div class="telem-label">CPU</div>
                 </div>
-                <div class="telem-item">
+                <div class="telem-item" data-series="free_mem" style="--series-color:#a78bfa">
                     <div class="telem-icon">&#x1F4BE;</div>
                     <div class="telem-value" id="memValue">--</div>
-                    <div class="telem-label">Free RAM</div>
+                    <div class="telem-label">RAM</div>
                 </div>
-                <div class="telem-item">
+                <div class="telem-item" data-series="storage_pct" style="--series-color:#f472b6">
                     <div class="telem-icon">&#x1F4C1;</div>
                     <div class="telem-value" id="storageValue">--</div>
                     <div class="telem-label">Storage</div>
@@ -551,16 +557,38 @@
             document.getElementById('rawAdcStat').textContent = reading.raw;
             document.getElementById('updatedAt').textContent = `Last updated: ${reading.timestamp.toLocaleString()}`;
 
-            // Device telemetry
+            // Device telemetry (all as percentages)
             const hasTelemetry = reading.rssi !== null || reading.free_mem !== null;
             document.getElementById('telemetryCard').style.display = hasTelemetry ? 'block' : 'none';
             if (hasTelemetry) {
-                document.getElementById('rssiValue').textContent = reading.rssi !== null ? `${reading.rssi} dBm` : '--';
+                // WiFi: -90dBm=0%, -30dBm=100%
+                if (reading.rssi !== null) {
+                    const rssiPct = Math.round(Math.max(0, Math.min(100, (reading.rssi + 90) / 60 * 100)));
+                    document.getElementById('rssiValue').textContent = `${rssiPct}%`;
+                } else {
+                    document.getElementById('rssiValue').textContent = '--';
+                }
                 updateRssiBars(reading.rssi);
-                document.getElementById('cpuValue').textContent = reading.cpu_freq !== null ? reading.cpu_freq : '--';
-                document.getElementById('memValue').textContent = formatBytes(reading.free_mem);
+
+                // CPU: 0-250MHz scale
+                if (reading.cpu_freq !== null) {
+                    const cpuPct = Math.round(Math.min(100, (reading.cpu_freq / 250) * 100));
+                    document.getElementById('cpuValue').textContent = `${cpuPct}%`;
+                } else {
+                    document.getElementById('cpuValue').textContent = '--';
+                }
+
+                // RAM: free as % of ~200KB total
+                if (reading.free_mem !== null) {
+                    const ramPct = Math.round(Math.min(100, (reading.free_mem / 200000) * 100));
+                    document.getElementById('memValue').textContent = `${ramPct}%`;
+                } else {
+                    document.getElementById('memValue').textContent = '--';
+                }
+
+                // Storage: used %
                 if (reading.total_storage !== null && reading.used_storage !== null) {
-                    const pct = ((reading.used_storage / reading.total_storage) * 100).toFixed(0);
+                    const pct = Math.round((reading.used_storage / reading.total_storage) * 100);
                     document.getElementById('storageValue').textContent = `${pct}%`;
                 } else {
                     document.getElementById('storageValue').textContent = '--';
@@ -577,7 +605,7 @@
         }
 
         // ---- Chart: Water Level ----
-        function drawChart(readings) {
+        function drawChart(readings, rangeHours) {
             const canvas = document.getElementById('chart');
             const ctx = canvas.getContext('2d');
             canvas.width = canvas.offsetWidth * 2;
@@ -592,13 +620,9 @@
 
             ctx.clearRect(0, 0, w, h);
 
-            if (readings.length < 2) {
-                ctx.fillStyle = '#64748b';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('Waiting for data...', w / 2, h / 2);
-                return;
-            }
+            // Fixed time window: (now - range) to now
+            const tMax = Date.now();
+            const tMin = tMax - rangeHours * 3600000;
 
             const maxGal = TANK_MAX_GAL;
             const steps = 4;
@@ -618,27 +642,47 @@
                 ctx.fillText(`${maxGal - (maxGal / steps) * i}`, pad.left - 5, y + 4);
             }
 
-            drawTimeLabels(ctx, readings, pad, w, h);
+            drawTimeLabels(ctx, tMin, tMax, rangeHours, pad, w, h);
+
+            if (readings.length < 2) {
+                ctx.fillStyle = '#64748b';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Waiting for data...', w / 2, h / 2);
+                return;
+            }
 
             ctx.strokeStyle = '#38bdf8';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            readings.forEach((r, i) => {
-                const x = pad.left + (i / (readings.length - 1)) * chartW;
+            let started = false;
+            readings.forEach(r => {
+                const t = r.timestamp.getTime();
+                if (t < tMin || t > tMax) return;
+                const x = pad.left + ((t - tMin) / (tMax - tMin)) * chartW;
                 const y = pad.top + chartH - (r.gallons / maxGal) * chartH;
-                if (i === 0) ctx.moveTo(x, y);
+                if (!started) { ctx.moveTo(x, y); started = true; }
                 else ctx.lineTo(x, y);
             });
             ctx.stroke();
 
-            ctx.lineTo(pad.left + chartW, pad.top + chartH);
-            ctx.lineTo(pad.left, pad.top + chartH);
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(56, 189, 248, 0.1)';
-            ctx.fill();
+            if (started) {
+                // Fill under the line
+                const lastR = readings.filter(r => r.timestamp.getTime() >= tMin).pop();
+                const lastX = pad.left + ((lastR.timestamp.getTime() - tMin) / (tMax - tMin)) * chartW;
+                ctx.lineTo(lastX, pad.top + chartH);
+                const firstR = readings.find(r => r.timestamp.getTime() >= tMin);
+                const firstX = pad.left + ((firstR.timestamp.getTime() - tMin) / (tMax - tMin)) * chartW;
+                ctx.lineTo(firstX, pad.top + chartH);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.1)';
+                ctx.fill();
+            }
         }
 
-        // ---- Chart: Device Health (multi-line) ----
+        // ---- Chart: Device Health (single selected series) ----
+        let activeDeviceSeries = 'rssi';  // default selected
+
         const DEVICE_SERIES = [
             { key: 'rssi',    label: 'WiFi RSSI',  color: '#22c55e', unit: 'dBm',
               normalize: v => v != null ? (Math.max(-90, Math.min(-30, v)) + 90) / 60 : null },
@@ -650,7 +694,7 @@
               normalize: v => v != null ? v / 100 : null },
         ];
 
-        function drawDeviceChart(readings) {
+        function drawDeviceChart(readings, rangeHours) {
             const card = document.getElementById('deviceChartCard');
             const hasTelem = readings.some(r => r.rssi !== null || r.free_mem !== null);
             card.style.display = hasTelem ? 'block' : 'none';
@@ -676,6 +720,10 @@
 
             ctx.clearRect(0, 0, w, h);
 
+            // Fixed time window
+            const tMax = Date.now();
+            const tMin = tMax - rangeHours * 3600000;
+
             if (readings.length < 2) {
                 ctx.fillStyle = '#64748b';
                 ctx.font = '14px sans-serif';
@@ -695,48 +743,60 @@
                 ctx.stroke();
             }
 
-            drawTimeLabels(ctx, readings, pad, w, h);
+            drawTimeLabels(ctx, tMin, tMax, rangeHours, pad, w, h);
 
-            // Draw each series
-            DEVICE_SERIES.forEach(series => {
-                ctx.strokeStyle = series.color;
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                let started = false;
-                readings.forEach((r, i) => {
-                    const val = series.normalize(r[series.key]);
-                    if (val === null) return;
-                    const x = pad.left + (i / (readings.length - 1)) * chartW;
-                    const y = pad.top + chartH - val * chartH;
-                    if (!started) { ctx.moveTo(x, y); started = true; }
-                    else ctx.lineTo(x, y);
-                });
-                ctx.stroke();
+            // Draw only the active series
+            const series = DEVICE_SERIES.find(s => s.key === activeDeviceSeries) || DEVICE_SERIES[0];
+            ctx.strokeStyle = series.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let started = false;
+            readings.forEach(r => {
+                const val = series.normalize(r[series.key]);
+                if (val === null) return;
+                const t = r.timestamp.getTime();
+                if (t < tMin || t > tMax) return;
+                const x = pad.left + ((t - tMin) / (tMax - tMin)) * chartW;
+                const y = pad.top + chartH - val * chartH;
+                if (!started) { ctx.moveTo(x, y); started = true; }
+                else ctx.lineTo(x, y);
             });
+            ctx.stroke();
 
-            // Legend
-            const legend = document.getElementById('deviceLegend');
-            legend.innerHTML = DEVICE_SERIES.map(s =>
-                `<div class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.label}</div>`
-            ).join('');
+            // Fill under line
+            if (started) {
+                const inRange = readings.filter(r => r.timestamp.getTime() >= tMin && r.timestamp.getTime() <= tMax);
+                if (inRange.length) {
+                    const lastX = pad.left + ((inRange[inRange.length - 1].timestamp.getTime() - tMin) / (tMax - tMin)) * chartW;
+                    const firstX = pad.left + ((inRange[0].timestamp.getTime() - tMin) / (tMax - tMin)) * chartW;
+                    ctx.lineTo(lastX, pad.top + chartH);
+                    ctx.lineTo(firstX, pad.top + chartH);
+                    ctx.closePath();
+                    ctx.fillStyle = series.color.replace(')', ', 0.1)').replace('rgb', 'rgba');
+                    // Use hex with alpha
+                    ctx.fillStyle = series.color + '1a';
+                    ctx.fill();
+                }
+            }
+
+            // Remove legend (boxes serve as legend now)
+            document.getElementById('deviceLegend').innerHTML = '';
         }
 
         // ---- Shared time axis labels ----
-        function drawTimeLabels(ctx, readings, pad, w, h) {
+        function drawTimeLabels(ctx, tMin, tMax, rangeHours, pad, w, h) {
             ctx.fillStyle = '#475569';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'center';
-            const first = readings[0].timestamp;
-            const last = readings[readings.length - 1].timestamp;
-            const spanHours = (last - first) / 3600000;
-            const fmt = spanHours > 48
+            const fmt = rangeHours > 48
                 ? { month: 'short', day: 'numeric' }
                 : { hour: '2-digit', minute: '2-digit' };
+            const first = new Date(tMin);
+            const mid = new Date((tMin + tMax) / 2);
+            const last = new Date(tMax);
             ctx.fillText(first.toLocaleString([], fmt), pad.left, h - 5);
-            ctx.fillText(last.toLocaleString([], fmt), w - pad.right, h - 5);
-            // Middle label
-            const mid = readings[Math.floor(readings.length / 2)].timestamp;
             ctx.fillText(mid.toLocaleString([], fmt), (pad.left + w - pad.right) / 2, h - 5);
+            ctx.fillText(last.toLocaleString([], fmt), w - pad.right, h - 5);
         }
 
         // ---- Range button handlers ----
@@ -752,8 +812,8 @@
         }
 
         function redrawCharts() {
-            drawChart(filterByHours(allHistory, waterRangeHours));
-            drawDeviceChart(filterByHours(allHistory, deviceRangeHours));
+            drawChart(filterByHours(allHistory, waterRangeHours), waterRangeHours);
+            drawDeviceChart(filterByHours(allHistory, deviceRangeHours), deviceRangeHours);
         }
 
         // ---- Init ----
@@ -762,6 +822,16 @@
 
             setupRangeButtons('waterRangeBtns', h => { waterRangeHours = h; redrawCharts(); });
             setupRangeButtons('deviceRangeBtns', h => { deviceRangeHours = h; redrawCharts(); });
+
+            // Telemetry box click → select series for device chart
+            document.getElementById('telemetryGrid').addEventListener('click', (e) => {
+                const item = e.target.closest('.telem-item');
+                if (!item || !item.dataset.series) return;
+                document.querySelectorAll('.telem-item').forEach(el => el.classList.remove('active'));
+                item.classList.add('active');
+                activeDeviceSeries = item.dataset.series;
+                redrawCharts();
+            });
 
             const latest = await fetchLatest();
             updateUI(latest);
