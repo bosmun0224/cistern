@@ -137,12 +137,58 @@
         .rssi-bar span:nth-child(4) { height: 14px; }
 
         /* Chart */
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .chart-header h3 { margin-bottom: 0; }
+        .range-btns {
+            display: flex;
+            gap: 4px;
+        }
+        .range-btn {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .range-btn.active {
+            background: #38bdf8;
+            color: #0f172a;
+            border-color: #38bdf8;
+            font-weight: 600;
+        }
         .chart-container {
             width: 100%;
             height: 200px;
             position: relative;
         }
         canvas { width: 100% !important; height: 100% !important; }
+        .chart-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.7rem;
+            color: #94a3b8;
+        }
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
 
         /* Status */
         .status-bar {
@@ -246,10 +292,38 @@
         </div>
 
         <div class="card">
-            <h3>Last 24 Hours</h3>
+            <div class="chart-header">
+                <h3>Water Level</h3>
+                <div class="range-btns" id="waterRangeBtns">
+                    <button class="range-btn" data-hours="1">1h</button>
+                    <button class="range-btn" data-hours="6">6h</button>
+                    <button class="range-btn" data-hours="12">12h</button>
+                    <button class="range-btn active" data-hours="24">24h</button>
+                    <button class="range-btn" data-hours="168">7d</button>
+                    <button class="range-btn" data-hours="336">14d</button>
+                </div>
+            </div>
             <div class="chart-container">
                 <canvas id="chart"></canvas>
             </div>
+        </div>
+
+        <div class="card" id="deviceChartCard" style="display:none;">
+            <div class="chart-header">
+                <h3>Device Health</h3>
+                <div class="range-btns" id="deviceRangeBtns">
+                    <button class="range-btn" data-hours="1">1h</button>
+                    <button class="range-btn" data-hours="6">6h</button>
+                    <button class="range-btn" data-hours="12">12h</button>
+                    <button class="range-btn active" data-hours="24">24h</button>
+                    <button class="range-btn" data-hours="168">7d</button>
+                    <button class="range-btn" data-hours="336">14d</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="deviceChart"></canvas>
+            </div>
+            <div class="chart-legend" id="deviceLegend"></div>
         </div>
 
         <!-- Device telemetry -->
@@ -334,6 +408,10 @@
         }
 
         // ---- Firestore API ----
+        let allHistory = [];   // full cache of fetched readings
+        let waterRangeHours = 24;
+        let deviceRangeHours = 24;
+
         async function fetchLatest() {
             const url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp desc&pageSize=1`;
             try {
@@ -347,15 +425,22 @@
         }
 
         async function fetchHistory() {
+            // Fetch up to 4032 readings (14 days × 12/hr × 24h)
             try {
-                const url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp desc&pageSize=288`;
+                const url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp desc&pageSize=4032`;
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data.documents) {
-                    return data.documents.map(d => enrichReading(parseDoc(d))).reverse();
+                    allHistory = data.documents.map(d => enrichReading(parseDoc(d))).reverse();
+                    return allHistory;
                 }
             } catch (e) { console.error('History fetch error:', e); }
             return [];
+        }
+
+        function filterByHours(readings, hours) {
+            const cutoff = Date.now() - hours * 3600 * 1000;
+            return readings.filter(r => r.timestamp.getTime() >= cutoff);
         }
 
         function parseDoc(doc) {
@@ -473,7 +558,7 @@
             return `${Math.floor(seconds / 86400)}d ago`;
         }
 
-        // ---- Chart ----
+        // ---- Chart: Water Level ----
         function drawChart(readings) {
             const canvas = document.getElementById('chart');
             const ctx = canvas.getContext('2d');
@@ -515,13 +600,7 @@
                 ctx.fillText(`${maxGal - (maxGal / steps) * i}`, pad.left - 5, y + 4);
             }
 
-            ctx.fillStyle = '#475569';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'center';
-            const first = readings[0].timestamp;
-            const last = readings[readings.length - 1].timestamp;
-            ctx.fillText(first.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), pad.left, h - 5);
-            ctx.fillText(last.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), w - pad.right, h - 5);
+            drawTimeLabels(ctx, readings, pad, w, h);
 
             ctx.strokeStyle = '#38bdf8';
             ctx.lineWidth = 2;
@@ -541,19 +620,140 @@
             ctx.fill();
         }
 
+        // ---- Chart: Device Health (multi-line) ----
+        const DEVICE_SERIES = [
+            { key: 'rssi',    label: 'WiFi RSSI',  color: '#22c55e', unit: 'dBm',
+              normalize: v => v != null ? (Math.max(-90, Math.min(-30, v)) + 90) / 60 : null },
+            { key: 'free_mem', label: 'Free RAM',   color: '#a78bfa', unit: 'KB',
+              normalize: v => v != null ? Math.min(v / 200000, 1) : null },
+            { key: 'cpu_freq', label: 'CPU',        color: '#fb923c', unit: 'MHz',
+              normalize: v => v != null ? Math.min(v / 250, 1) : null },
+            { key: 'storage_pct', label: 'Storage %', color: '#f472b6', unit: '%',
+              normalize: v => v != null ? v / 100 : null },
+        ];
+
+        function drawDeviceChart(readings) {
+            const card = document.getElementById('deviceChartCard');
+            const hasTelem = readings.some(r => r.rssi !== null || r.free_mem !== null);
+            card.style.display = hasTelem ? 'block' : 'none';
+            if (!hasTelem) return;
+
+            // Add storage_pct to readings
+            readings.forEach(r => {
+                r.storage_pct = (r.total_storage && r.used_storage)
+                    ? (r.used_storage / r.total_storage) * 100 : null;
+            });
+
+            const canvas = document.getElementById('deviceChart');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth * 2;
+            canvas.height = canvas.offsetHeight * 2;
+            ctx.scale(2, 2);
+
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+            const pad = { top: 10, right: 10, bottom: 25, left: 10 };
+            const chartW = w - pad.left - pad.right;
+            const chartH = h - pad.top - pad.bottom;
+
+            ctx.clearRect(0, 0, w, h);
+
+            if (readings.length < 2) {
+                ctx.fillStyle = '#64748b';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Waiting for data...', w / 2, h / 2);
+                return;
+            }
+
+            // Grid lines (0%, 50%, 100%)
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 2; i++) {
+                const y = pad.top + (chartH / 2) * i;
+                ctx.beginPath();
+                ctx.moveTo(pad.left, y);
+                ctx.lineTo(w - pad.right, y);
+                ctx.stroke();
+            }
+
+            drawTimeLabels(ctx, readings, pad, w, h);
+
+            // Draw each series
+            DEVICE_SERIES.forEach(series => {
+                ctx.strokeStyle = series.color;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                let started = false;
+                readings.forEach((r, i) => {
+                    const val = series.normalize(r[series.key]);
+                    if (val === null) return;
+                    const x = pad.left + (i / (readings.length - 1)) * chartW;
+                    const y = pad.top + chartH - val * chartH;
+                    if (!started) { ctx.moveTo(x, y); started = true; }
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            });
+
+            // Legend
+            const legend = document.getElementById('deviceLegend');
+            legend.innerHTML = DEVICE_SERIES.map(s =>
+                `<div class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.label}</div>`
+            ).join('');
+        }
+
+        // ---- Shared time axis labels ----
+        function drawTimeLabels(ctx, readings, pad, w, h) {
+            ctx.fillStyle = '#475569';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            const first = readings[0].timestamp;
+            const last = readings[readings.length - 1].timestamp;
+            const spanHours = (last - first) / 3600000;
+            const fmt = spanHours > 48
+                ? { month: 'short', day: 'numeric' }
+                : { hour: '2-digit', minute: '2-digit' };
+            ctx.fillText(first.toLocaleString([], fmt), pad.left, h - 5);
+            ctx.fillText(last.toLocaleString([], fmt), w - pad.right, h - 5);
+            // Middle label
+            const mid = readings[Math.floor(readings.length / 2)].timestamp;
+            ctx.fillText(mid.toLocaleString([], fmt), (pad.left + w - pad.right) / 2, h - 5);
+        }
+
+        // ---- Range button handlers ----
+        function setupRangeButtons(containerId, onChange) {
+            const container = document.getElementById(containerId);
+            container.addEventListener('click', (e) => {
+                const btn = e.target.closest('.range-btn');
+                if (!btn) return;
+                container.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                onChange(parseInt(btn.dataset.hours));
+            });
+        }
+
+        function redrawCharts() {
+            drawChart(filterByHours(allHistory, waterRangeHours));
+            drawDeviceChart(filterByHours(allHistory, deviceRangeHours));
+        }
+
         // ---- Init ----
         async function init() {
+            setupRangeButtons('waterRangeBtns', h => { waterRangeHours = h; redrawCharts(); });
+            setupRangeButtons('deviceRangeBtns', h => { deviceRangeHours = h; redrawCharts(); });
+
             const latest = await fetchLatest();
             updateUI(latest);
 
-            const history = await fetchHistory();
-            drawChart(history);
+            await fetchHistory();
+            redrawCharts();
 
             setInterval(async () => {
                 const r = await fetchLatest();
                 updateUI(r);
-                const h = await fetchHistory();
-                drawChart(h);
+                await fetchHistory();
+                redrawCharts();
             }, 60000);
         }
 

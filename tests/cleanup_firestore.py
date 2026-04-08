@@ -1,94 +1,70 @@
-"""
-Delete all documents from the Firestore readings collection.
+#!/usr/bin/env python3
+"""Delete all documents from the Firestore 'readings' collection.
 
-Uses batch delete via the REST API with OAuth (gcloud auth).
-Security rules block delete with API keys, so this uses
-a gcloud access token instead.
+Uses gcloud OAuth token (security rules block API-key deletes).
 
 Usage:
-    python3 cistern/cleanup_firestore.py
+    python3 -m tests.cleanup_firestore
 """
 
 import json
+import os
 import subprocess
 import urllib.request
 import urllib.error
 
-PROJECT_ID = "cistern-blomquist"
-API_KEY = "AIzaSyCMvUgbaUvekblMsrPx7Pg9sPrmgB4iPk4"
+FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "cistern-blomquist")
+
 FIRESTORE_BASE = (
-    f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}"
+    f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}"
     f"/databases/(default)/documents"
 )
-PAGE_SIZE = 100
 
 
 def get_access_token():
-    """Get OAuth token from gcloud CLI."""
     result = subprocess.run(
         ["gcloud", "auth", "print-access-token"],
-        capture_output=True,
-        text=True,
+        capture_output=True, text=True, check=True,
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"gcloud auth failed: {result.stderr}")
     return result.stdout.strip()
 
 
 def list_documents(token, page_token=None):
-    """List document names from the readings collection."""
-    url = f"{FIRESTORE_BASE}/readings?pageSize={PAGE_SIZE}"
+    url = f"{FIRESTORE_BASE}/readings?pageSize=100"
     if page_token:
         url += f"&pageToken={page_token}"
-    req = urllib.request.Request(
-        url,
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    with urllib.request.urlopen(req) as resp:
-        data = json.loads(resp.read())
-    docs = [d["name"] for d in data.get("documents", [])]
-    next_token = data.get("nextPageToken")
-    return docs, next_token
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    resp = urllib.request.urlopen(req)
+    return json.loads(resp.read())
 
 
-def delete_document(token, name):
-    """Delete a single document by its full resource name."""
+def delete_document(name, token):
     url = f"https://firestore.googleapis.com/v1/{name}"
-    req = urllib.request.Request(
-        url,
-        headers={"Authorization": f"Bearer {token}"},
-        method="DELETE",
-    )
+    req = urllib.request.Request(url, method="DELETE", headers={"Authorization": f"Bearer {token}"})
     try:
-        with urllib.request.urlopen(req) as resp:
-            return resp.status
-    except urllib.error.HTTPError as e:
-        print(f"  Failed to delete {name}: {e.code}")
-        return e.code
+        urllib.request.urlopen(req)
+        return True
+    except urllib.error.HTTPError:
+        return False
 
 
 def main():
     token = get_access_token()
-    total_deleted = 0
-    page_token = None
-
-    print(f"Cleaning up readings from Firestore ({PROJECT_ID})...")
-
+    total = 0
     while True:
-        docs, page_token = list_documents(token, page_token)
+        data = list_documents(token)
+        docs = data.get("documents", [])
         if not docs:
             break
-
-        for name in docs:
-            delete_document(token, name)
-            total_deleted += 1
-
-        print(f"  Deleted {total_deleted} documents so far...")
-
-        if not page_token:
+        for doc in docs:
+            name = doc["name"]
+            if delete_document(name, token):
+                total += 1
+        next_page = data.get("nextPageToken")
+        if not next_page:
             break
-
-    print(f"Done. Deleted {total_deleted} documents total.")
+        data = list_documents(token, next_page)
+    print(f"Deleted {total} documents.")
 
 
 if __name__ == "__main__":
