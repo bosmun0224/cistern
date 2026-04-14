@@ -131,6 +131,49 @@ To push an update:
 3. Push to GitHub
 4. Pico downloads new files on next boot
 
+## Troubleshooting via USB
+
+Connect to the Pico W over USB for hardware debugging using `mpremote`:
+
+```bash
+mpremote connect /dev/cu.usbmodem* repl
+```
+
+### Entering the REPL
+
+There are two ways to drop into the MicroPython REPL:
+
+1. **Ctrl+C** — Press Ctrl+C during the 3-second boot delay, or at any time while the main loop is running.
+2. **Debug jumper** — Connect GP15 to GND before powering on. This skips all code and drops straight to the REPL.
+
+### Useful REPL Commands
+
+```python
+# Scan for I2C devices (ADS1115 should be at 0x48)
+from sensor import scan_i2c
+scan_i2c()
+
+# Take a sensor reading
+from sensor import read_sensor
+read_sensor()
+
+# Check WiFi status
+import network
+wlan = network.WLAN(network.STA_IF)
+wlan.isconnected(), wlan.ifconfig()
+
+# List files on the device
+import os
+os.listdir()
+
+# Read the config
+with open('config.py') as f: print(f.read())
+
+# Reboot the device
+import machine
+machine.reset()
+```
+
 ## Files
 
 | File | Purpose |

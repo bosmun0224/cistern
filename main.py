@@ -65,9 +65,10 @@ def get_device_telemetry():
 
 def main():
     print("\n=== Cistern Monitor ===")
+    print("(Ctrl+C to drop to REPL)\n")
     
     # Check I2C devices
-    print("\nScanning I2C bus...")
+    print("Scanning I2C bus...")
     devices = scan_i2c()
     if 0x48 not in devices:
         print("WARNING: ADS1115 not found at 0x48")
@@ -109,4 +110,12 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n*** Ctrl+C — stopped. You're in the REPL. ***")
+        print("Useful commands:")
+        print("  from sensor import read_sensor, scan_i2c")
+        print("  scan_i2c()          # list I2C devices")
+        print("  read_sensor()       # take a sensor reading")
+        print("  import machine; machine.reset()  # reboot")
