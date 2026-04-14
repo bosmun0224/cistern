@@ -105,7 +105,12 @@ def start_ap():
     ap = network.WLAN(network.AP_IF)
     ap.active(True)
     time.sleep(0.5)
-    ap.config(ssid=AP_SSID, key=AP_PASSWORD, security=4)
+    # Use WPA2 constant — older MicroPython used security=4, v1.28+ uses SEC_WPA2
+    try:
+        sec = network.WLAN.SEC_WPA2
+    except AttributeError:
+        sec = 4
+    ap.config(ssid=AP_SSID, key=AP_PASSWORD, security=sec)
     print("AP started: " + ap.config('ssid'))
     print("IP: " + ap.ifconfig()[0])
     return ap
@@ -133,7 +138,9 @@ def run_server():
 
     DNS redirects every domain lookup to the AP IP so phones/tablets
     auto-detect the captive portal and pop up the setup page.
+    USB REPL stays accessible via sys.stdin polling.
     """
+    import sys
     from machine import Pin
 
     led = Pin('LED', Pin.OUT)
@@ -154,6 +161,8 @@ def run_server():
     poller = select.poll()
     poller.register(http, select.POLLIN)
     poller.register(dns, select.POLLIN)
+    # Poll USB stdin so REPL Ctrl+C can interrupt
+    poller.register(sys.stdin, select.POLLIN)
 
     print("Captive portal ready at http://" + ip)
     led.on()
@@ -161,7 +170,13 @@ def run_server():
     while True:
         for sock, ev in poller.poll(1000):
             try:
-                if sock is dns:
+                if sock is sys.stdin:
+                    # Let MicroPython handle USB input (Ctrl+C will raise KeyboardInterrupt)
+                    char = sys.stdin.read(1)
+                    if char == '\x03':  # Ctrl+C
+                        raise KeyboardInterrupt
+
+                elif sock is dns:
                     data, addr = dns.recvfrom(256)
                     if len(data) > 12:
                         dns.sendto(_dns_reply(data, ip_bytes), addr)
@@ -198,6 +213,14 @@ def run_server():
                             conn.close()
                         except:
                             pass
+
+            except KeyboardInterrupt:
+                print("\n*** Ctrl+C — dropping to REPL ***")
+                print("Portal stopped. Run import machine; machine.reset() to restart.")
+                led.off()
+                http.close()
+                dns.close()
+                return
 
             except Exception as e:
                 print("Poll error: " + str(e))
