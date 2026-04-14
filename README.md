@@ -49,18 +49,54 @@ graph TD
 
 ## Setup
 
-1. Flash MicroPython to your Pico W
-2. Upload all `.py` files to the Pico:
+### Flashing MicroPython (Fresh or Re-flash)
+
+**Requirements:**
 
 ```bash
+brew install picotool
 pip install mpremote
+```
+
+**1. Enter BOOTSEL mode:** Hold the BOOTSEL button on the Pico W while plugging it into USB.
+
+**2. Erase the entire flash** (removes all code and filesystem):
+
+```bash
+picotool erase --all
+```
+
+**3. Download and flash MicroPython:**
+
+Download the latest Pico W firmware from [micropython.org/download/RPI_PICO_W](https://micropython.org/download/RPI_PICO_W/), then:
+
+```bash
+picotool load RPI_PICO_W-<version>.uf2
+picotool reboot
+```
+
+**4. Verify the Pico W is running MicroPython:**
+
+```bash
+mpremote connect list
+```
+
+You should see a device like `/dev/cu.usbmodem*` listed as `MicroPython Board in FS mode`.
+
+> **Important:** Always use `picotool` for flashing — do NOT drag-and-drop `.uf2` files to `/Volumes/RPI-RP2`. macOS may report the copy as successful before the data is fully written, resulting in a corrupted or incomplete flash. The `picotool erase --all` command is also necessary to wipe the MicroPython filesystem area where user scripts (`boot.py`, `main.py`, etc.) are stored — a firmware-only flash leaves old code intact.
+
+### Upload Cistern Code
+
+```bash
 mpremote cp boot.py main.py sensor.py ota.py firebase.py provision.py config.py.example :
 ```
 
-3. Power on the Pico — it starts a **"Cistern-Setup"** WiFi hotspot
-4. Connect your phone to it (password: `cistern123`)
-5. Enter the home WiFi credentials in the setup page
-6. Pico saves, reboots, and starts monitoring
+### Provision WiFi
+
+1. Power on the Pico — it starts a **"Cistern-Setup"** WiFi hotspot
+2. Connect your phone to it (password: `cistern123`)
+3. Enter the home WiFi credentials in the setup page
+4. Pico saves, reboots, and starts monitoring
 
 ## Firebase
 
