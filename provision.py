@@ -105,12 +105,7 @@ def start_ap():
     ap = network.WLAN(network.AP_IF)
     ap.active(True)
     time.sleep(0.5)
-    # Use WPA2 constant — older MicroPython used security=4, v1.28+ uses SEC_WPA2
-    try:
-        sec = network.WLAN.SEC_WPA2
-    except AttributeError:
-        sec = 4
-    ap.config(ssid=AP_SSID, key=AP_PASSWORD, security=sec)
+    ap.config(ssid=AP_SSID, password=AP_PASSWORD)
     print("AP started: " + ap.config('ssid'))
     print("IP: " + ap.ifconfig()[0])
     return ap
