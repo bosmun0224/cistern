@@ -24,7 +24,7 @@ SETUP_PAGE = (
     "button{width:100%;padding:10px;margin-top:20px;background:#e94560;color:#fff;"
     "border:none;border-radius:6px;font-size:18px}"
     "</style></head><body><h1>Cistern Monitor</h1>"
-    '<form method="POST" action="/save">'
+    '<form method="POST" action="http://192.168.4.1/save">'
     "<label>WiFi Name</label>"
     '<input name="ssid" required>'
     "<label>WiFi Password</label>"
@@ -42,7 +42,7 @@ SUCCESS_TMPL = (
     "background:#1a1a2e;color:#eee;text-align:center}"
     "h1{background:#0ead69;padding:10px;border-radius:8px}"
     "</style></head><body><h1>Saved!</h1>"
-    "<p>Connecting to <strong>{ssid}</strong>...</p>"
+    "<p>Connecting to <strong>__SSID__</strong>...</p>"
     "<p>Device will reboot. Reconnect to your WiFi.</p>"
     "</body></html>"
 )
@@ -133,9 +133,7 @@ def run_server():
 
     DNS redirects every domain lookup to the AP IP so phones/tablets
     auto-detect the captive portal and pop up the setup page.
-    USB REPL stays accessible via sys.stdin polling.
     """
-    import sys
     from machine import Pin
 
     led = Pin('LED', Pin.OUT)
@@ -156,8 +154,6 @@ def run_server():
     poller = select.poll()
     poller.register(http, select.POLLIN)
     poller.register(dns, select.POLLIN)
-    # Poll USB stdin so REPL Ctrl+C can interrupt
-    poller.register(sys.stdin, select.POLLIN)
 
     print("Captive portal ready at http://" + ip)
     led.on()
@@ -165,13 +161,7 @@ def run_server():
     while True:
         for sock, ev in poller.poll(1000):
             try:
-                if sock is sys.stdin:
-                    # Let MicroPython handle USB input (Ctrl+C will raise KeyboardInterrupt)
-                    char = sys.stdin.read(1)
-                    if char == '\x03':  # Ctrl+C
-                        raise KeyboardInterrupt
-
-                elif sock is dns:
+                if sock is dns:
                     data, addr = dns.recvfrom(256)
                     if len(data) > 12:
                         dns.sendto(_dns_reply(data, ip_bytes), addr)
@@ -179,28 +169,47 @@ def run_server():
                 elif sock is http:
                     conn, addr = http.accept()
                     try:
-                        request = conn.recv(1024).decode()
+                        # Read headers first
+                        request = conn.recv(2048).decode()
 
                         if 'POST /save' in request:
-                            body = request.split('\r\n\r\n', 1)[-1]
+                            # Body might not be in the first recv — check
+                            if '\r\n\r\n' in request:
+                                header_part, body = request.split('\r\n\r\n', 1)
+                            else:
+                                header_part = request
+                                body = ''
+
+                            # Get Content-Length and read remaining body if needed
+                            content_length = 0
+                            for line in header_part.split('\r\n'):
+                                if line.lower().startswith('content-length:'):
+                                    content_length = int(line.split(':')[1].strip())
+
+                            while len(body) < content_length:
+                                body += conn.recv(1024).decode()
+
+                            print("POST body: " + body)
                             params = parse_form(body)
                             ssid = params.get('ssid', '')
                             password = params.get('password', '')
 
                             if ssid:
-                                conn.send(SUCCESS_TMPL.format(ssid=ssid))
+                                response = SUCCESS_TMPL.replace('__SSID__', ssid)
+                                conn.sendall(response)
                                 conn.close()
+                                print("Config saved, rebooting...")
                                 save_config(ssid, password)
                                 time.sleep(2)
                                 ap.active(False)
                                 import machine
                                 machine.reset()
                             else:
-                                conn.send("HTTP/1.1 400 Bad Request\r\n\r\nMissing SSID")
+                                conn.sendall("HTTP/1.1 400 Bad Request\r\n\r\nMissing SSID")
                                 conn.close()
                         else:
                             # Serve setup page for ANY request (captive portal detect + manual)
-                            conn.send(SETUP_PAGE)
+                            conn.sendall(SETUP_PAGE)
                             conn.close()
                     except Exception as e:
                         print("HTTP error: " + str(e))
@@ -208,14 +217,6 @@ def run_server():
                             conn.close()
                         except:
                             pass
-
-            except KeyboardInterrupt:
-                print("\n*** Ctrl+C — dropping to REPL ***")
-                print("Portal stopped. Run import machine; machine.reset() to restart.")
-                led.off()
-                http.close()
-                dns.close()
-                return
 
             except Exception as e:
                 print("Poll error: " + str(e))

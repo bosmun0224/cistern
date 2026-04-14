@@ -32,6 +32,16 @@ except KeyboardInterrupt:
     print("\n*** Ctrl+C — dropping to REPL ***\n")
     raise SystemExit
 
+def sync_ntp():
+    """Sync RTC to NTP time."""
+    try:
+        import ntptime
+        ntptime.settime()
+        t = time.localtime()
+        print(f"NTP synced: {t[0]:04d}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d}:{t[5]:02d} UTC")
+    except Exception as e:
+        print(f"NTP sync failed: {e}")
+
 def connect_wifi():
     global wlan
     
@@ -64,6 +74,7 @@ def connect_wifi():
     
     if wlan.isconnected():
         print(f"Connected: {wlan.ifconfig()[0]}")
+        sync_ntp()
         return True
     else:
         print("WiFi connection failed")

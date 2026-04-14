@@ -559,10 +559,10 @@
                     document.getElementById('cpuValue').textContent = '--';
                 }
 
-                // RAM: free as % of ~200KB total
+                // RAM: used as % of ~264KB total
                 if (reading.free_mem !== null) {
-                    const ramPct = Math.round(Math.min(100, (reading.free_mem / 200000) * 100));
-                    document.getElementById('memValue').textContent = `${ramPct}%`;
+                    const ramUsedPct = Math.round(Math.min(100, ((264000 - reading.free_mem) / 264000) * 100));
+                    document.getElementById('memValue').textContent = `${ramUsedPct}%`;
                 } else {
                     document.getElementById('memValue').textContent = '--';
                 }

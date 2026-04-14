@@ -41,13 +41,14 @@ def get_device_telemetry():
     gc.collect()
     telemetry['free_mem'] = gc.mem_free()
 
-    # CPU temperature (internal sensor on ADC4)
+    # CPU temperature (Pico W reads via ADC4, same as regular Pico)
     try:
-        adc = ADC(4)
-        raw = adc.read_u16()
-        telemetry['cpu_temp'] = round(27 - (raw * 3.3 / 65535 - 0.706) / 0.001721, 1)
-    except Exception:
-        pass
+        temp_adc = ADC(4)
+        raw = temp_adc.read_u16()
+        voltage = raw * 3.3 / 65535
+        telemetry['cpu_temp'] = round(27 - (voltage - 0.706) / 0.001721, 1)
+    except Exception as e:
+        print("CPU temp error: " + str(e))
 
     # Storage (flash filesystem)
     try:
