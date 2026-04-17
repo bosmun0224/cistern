@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.0] - 2026-04-17
+
+- Provisioning now tests WiFi credentials before saving (STA+AP concurrent on CYW43)
+- Shows spinner "Testing..." page, then auto-redirects to result
+- On success: saves config, shows "Connected!" page, reboots
+- On failure: shows specific error (wrong password / network not found / timed out) with "Try Again"
+- Button renamed "Test & Save" — no more blind save-and-pray
+
 ## [1.10.0] - 2026-04-17
 
 - WiFi hardening: enable CYW43 auto-reconnect (`reconnects=-1`) so firmware handles transient drops

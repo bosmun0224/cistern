@@ -1,5 +1,6 @@
 # provision.py - WiFi AP mode provisioning
 # Single-threaded captive portal: DNS + HTTP via select.poll()
+# Tests credentials via STA while AP stays up (CYW43 supports both).
 
 import network
 import socket
@@ -23,27 +24,48 @@ SETUP_PAGE = (
     "box-sizing:border-box;font-size:16px;background:#16213e;color:#eee}"
     "button{width:100%;padding:10px;margin-top:20px;background:#e94560;color:#fff;"
     "border:none;border-radius:6px;font-size:18px}"
+    ".msg{padding:10px;border-radius:6px;margin-bottom:14px;text-align:center}"
+    ".err{background:#e94560}.ok{background:#0ead69}"
     "</style></head><body><h1>Cistern Monitor</h1>"
+    "__MSG__"
     '<form method="POST" action="http://192.168.4.1/save">'
     "<label>WiFi Name</label>"
-    '<input name="ssid" required>'
+    '<input name="ssid" value="__PREV_SSID__" required>'
     "<label>WiFi Password</label>"
     '<input type="password" name="password" required>'
-    "<button type=\"submit\">Save &amp; Connect</button>"
+    "<button type=\"submit\">Test &amp; Save</button>"
     "</form></body></html>"
 )
 
-SUCCESS_TMPL = (
+TESTING_PAGE = (
     "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"
     "<!DOCTYPE html><html><head>"
     '<meta name="viewport" content="width=device-width,initial-scale=1">'
-    "<title>Saved</title><style>"
+    '<meta http-equiv="refresh" content="20;url=http://192.168.4.1/result">'
+    "<title>Testing...</title><style>"
+    "body{font-family:sans-serif;max-width:380px;margin:40px auto;padding:0 16px;"
+    "background:#1a1a2e;color:#eee;text-align:center}"
+    "h1{background:#e94560;padding:10px;border-radius:8px}"
+    ".spin{font-size:48px;animation:spin 1s linear infinite;display:inline-block}"
+    "@keyframes spin{to{transform:rotate(360deg)}}"
+    "</style></head><body><h1>Testing WiFi</h1>"
+    '<p class="spin">&#x21bb;</p>'
+    "<p>Connecting to <strong>__SSID__</strong>...</p>"
+    "<p>This takes ~15 seconds. Page will update automatically.</p>"
+    "</body></html>"
+)
+
+SUCCESS_PAGE = (
+    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"
+    "<!DOCTYPE html><html><head>"
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'
+    "<title>Connected!</title><style>"
     "body{font-family:sans-serif;max-width:380px;margin:40px auto;padding:0 16px;"
     "background:#1a1a2e;color:#eee;text-align:center}"
     "h1{background:#0ead69;padding:10px;border-radius:8px}"
-    "</style></head><body><h1>Saved!</h1>"
-    "<p>Connecting to <strong>__SSID__</strong>...</p>"
-    "<p>Device will reboot. Reconnect to your WiFi.</p>"
+    "</style></head><body><h1>Connected!</h1>"
+    "<p>Successfully connected to <strong>__SSID__</strong></p>"
+    "<p>Credentials saved. Rebooting now...</p>"
     "</body></html>"
 )
 
@@ -73,7 +95,6 @@ def save_config(ssid, password):
 
     if 'OTA_BASE_URL' not in existing:
         existing['OTA_BASE_URL'] = '"https://raw.githubusercontent.com/bosmun0224/cistern/main/"'
-    # OTA_FILES is defined in ota.py, not config.py — remove if present from old versions
     existing.pop('OTA_FILES', None)
     if 'FIREBASE_PROJECT_ID' not in existing:
         existing['FIREBASE_PROJECT_ID'] = '"cistern-blomquist"'
@@ -109,6 +130,32 @@ def parse_form(body):
     return params
 
 
+def test_wifi(ssid, password, timeout=15):
+    """Test WiFi credentials via STA interface (AP stays up). Returns (ok, reason)."""
+    sta = network.WLAN(network.STA_IF)
+    sta.active(True)
+    sta.connect(ssid, password)
+    t = timeout
+    while not sta.isconnected() and t > 0:
+        time.sleep(1)
+        t -= 1
+    if sta.isconnected():
+        ip = sta.ifconfig()[0]
+        sta.disconnect()
+        sta.active(False)
+        return True, ip
+    status = sta.status()
+    reasons = {
+        network.STAT_WRONG_PASSWORD: 'Wrong password',
+        network.STAT_NO_AP_FOUND: 'Network not found — check the name',
+        network.STAT_CONNECT_FAIL: 'Connection failed',
+    }
+    reason = reasons.get(status, 'Timed out ({}s)'.format(timeout))
+    sta.disconnect()
+    sta.active(False)
+    return False, reason
+
+
 def start_ap():
     ap = network.WLAN(network.AP_IF)
     ap.active(True)
@@ -121,16 +168,13 @@ def start_ap():
 
 def _dns_reply(data, ip_bytes):
     """Build a DNS A-record response pointing all queries to our AP IP."""
-    # Header: copy txn ID, set response flags, 1 question, 1 answer
     resp = data[:2] + b'\x81\x80'
     resp += b'\x00\x01\x00\x01\x00\x00\x00\x00'
-    # Copy the question section verbatim
     qend = 12
     while data[qend] != 0:
         qend += data[qend] + 1
-    qend += 5  # null terminator + qtype(2) + qclass(2)
+    qend += 5
     resp += data[12:qend]
-    # Answer: name pointer, type A, class IN, TTL 60, 4-byte IP
     resp += b'\xc0\x0c\x00\x01\x00\x01\x00\x00\x00\x3c\x00\x04'
     resp += ip_bytes
     return resp
@@ -141,6 +185,7 @@ def run_server():
 
     DNS redirects every domain lookup to the AP IP so phones/tablets
     auto-detect the captive portal and pop up the setup page.
+    WiFi credentials are tested via STA while AP stays up.
     """
     from machine import Pin
 
@@ -149,13 +194,11 @@ def run_server():
     ip = ap.ifconfig()[0]
     ip_bytes = bytes(int(b) for b in ip.split('.'))
 
-    # --- HTTP (TCP) ---
     http = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     http.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     http.bind(('0.0.0.0', 80))
     http.listen(2)
 
-    # --- DNS (UDP) ---
     dns = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     dns.bind(('0.0.0.0', 53))
 
@@ -166,7 +209,26 @@ def run_server():
     print("Captive portal ready at http://" + ip)
     led.on()
 
+    # State for credential testing
+    pending_test = None   # (ssid, password) — queued after sending Testing page
+    test_result = None    # (ok, ssid, detail) — filled after test completes
+    last_password = ''    # remember for save_config after /result
+
     while True:
+        # Run queued WiFi test (Testing page already sent to phone)
+        if pending_test:
+            ssid, password = pending_test
+            last_password = password
+            pending_test = None
+            print("Testing WiFi: " + ssid)
+            ok, detail = test_wifi(ssid, password)
+            if ok:
+                print("WiFi test OK: " + detail)
+                test_result = (True, ssid, detail)
+            else:
+                print("WiFi test FAILED: " + detail)
+                test_result = (False, ssid, detail)
+
         for sock, ev in poller.poll(1000):
             try:
                 if sock is dns:
@@ -177,18 +239,15 @@ def run_server():
                 elif sock is http:
                     conn, addr = http.accept()
                     try:
-                        # Read headers first
                         request = conn.recv(2048).decode()
 
                         if 'POST /save' in request:
-                            # Body might not be in the first recv — check
                             if '\r\n\r\n' in request:
                                 header_part, body = request.split('\r\n\r\n', 1)
                             else:
                                 header_part = request
                                 body = ''
 
-                            # Get Content-Length and read remaining body if needed
                             content_length = 0
                             for line in header_part.split('\r\n'):
                                 if line.lower().startswith('content-length:'):
@@ -203,21 +262,42 @@ def run_server():
                             password = params.get('password', '')
 
                             if ssid:
-                                response = SUCCESS_TMPL.replace('__SSID__', ssid)
+                                response = TESTING_PAGE.replace('__SSID__', ssid)
                                 conn.sendall(response)
                                 conn.close()
-                                print("Config saved, rebooting...")
-                                save_config(ssid, password)
+                                pending_test = (ssid, password)
+                                test_result = None
+                            else:
+                                conn.sendall("HTTP/1.1 400 Bad Request\r\n\r\nMissing SSID")
+                                conn.close()
+
+                        elif 'GET /result' in request and test_result:
+                            ok, ssid, detail = test_result
+                            if ok:
+                                save_config(ssid, last_password)
+                                response = SUCCESS_PAGE.replace('__SSID__', ssid)
+                                conn.sendall(response)
+                                conn.close()
+                                print("Credentials verified + saved, rebooting...")
                                 time.sleep(2)
                                 ap.active(False)
                                 import machine
                                 machine.reset()
                             else:
-                                conn.sendall("HTTP/1.1 400 Bad Request\r\n\r\nMissing SSID")
+                                msg = '<div class="msg err">' + detail + '</div>'
+                                page = SETUP_PAGE.replace('__MSG__', msg).replace('__PREV_SSID__', ssid)
+                                conn.sendall(page)
                                 conn.close()
+                                test_result = None
+
+                        elif 'GET /result' in request:
+                            response = TESTING_PAGE.replace('__SSID__', '...')
+                            conn.sendall(response)
+                            conn.close()
+
                         else:
-                            # Serve setup page for ANY request (captive portal detect + manual)
-                            conn.sendall(SETUP_PAGE)
+                            page = SETUP_PAGE.replace('__MSG__', '').replace('__PREV_SSID__', '')
+                            conn.sendall(page)
                             conn.close()
                     except Exception as e:
                         print("HTTP error: " + str(e))
