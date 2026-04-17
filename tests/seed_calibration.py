@@ -26,7 +26,7 @@ FIRESTORE_BASE = (
 # Adjust these to match your sensor + tank setup.
 CALIBRATION = {
     # Sensor voltage range (actual ADC voltage at midpoint = I × 220Ω)
-    "v_min":          0.88,    # ADC voltage at 4mA (sensor in air, 0 depth)
+    "v_min":          0.884,   # ADC voltage at 4mA (sensor in air, 0 depth)
     "v_max":          4.40,    # ADC voltage at 20mA (sensor at max depth)
     "depth_max_m":    5.0,     # Sensor maximum depth rating in meters
 

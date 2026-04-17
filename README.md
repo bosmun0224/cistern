@@ -53,7 +53,7 @@ The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flo
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| v_min | 0.88V | ADC voltage at 4mA (sensor in air) |
+| v_min | 0.884V | ADC voltage at 4mA (sensor in air) |
 | v_max | 4.40V | ADC voltage at 20mA (sensor max depth) |
 | depth_max_m | 5.0 | Sensor maximum depth rating |
 | tank_radius_in | 28.8 | Norwesco 1500 gal horizontal cylinder |
@@ -217,7 +217,7 @@ python3 -m tests.seed_calibration
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `v_min` | 0.88 | ADC voltage at 4mA (sensor reads 0 depth) |
+| `v_min` | 0.884 | ADC voltage at 4mA (sensor reads 0 depth) |
 | `v_max` | 4.40 | ADC voltage at 20mA (sensor reads max depth) |
 | `depth_max_m` | 5.0 | Sensor maximum depth rating in meters |
 | `tank_radius_in` | 28.8 | Tank cross-section radius in inches |
