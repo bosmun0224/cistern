@@ -98,7 +98,7 @@ def ensure_wifi():
     
     print("WiFi disconnected, reconnecting...")
     wlan.active(True)
-    wlan.config(reconnects=-1, pm=network.WLAN.PM_PERFORMANCE)
+    wlan.config(pm=network.WLAN.PM_PERFORMANCE)
     
     try:
         from config import WIFI_SSID, WIFI_PASSWORD
