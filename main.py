@@ -35,6 +35,13 @@ def get_device_telemetry():
     import network
     telemetry = {}
 
+    # Firmware version
+    try:
+        with open('version.txt', 'r') as f:
+            telemetry['version'] = f.read().strip()
+    except Exception:
+        pass
+
     # WiFi RSSI
     try:
         wlan = network.WLAN(network.STA_IF)

@@ -43,6 +43,9 @@ def post_reading(data):
             else:
                 fields[key] = {"integerValue": str(data[key])}
 
+    if 'version' in data:
+        fields['version'] = {"stringValue": data['version']}
+
     doc = {"fields": fields}
 
     try:
