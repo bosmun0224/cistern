@@ -4,10 +4,12 @@ import os
 import machine
 
 try:
-    from config import OTA_BASE_URL, OTA_FILES
+    from config import OTA_BASE_URL
 except ImportError:
     OTA_BASE_URL = None
-    OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py', 'log.py']
+
+# Canonical file list — always defined here so OTA updates propagate it.
+OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py', 'log.py']
 
 
 def get_local_version():

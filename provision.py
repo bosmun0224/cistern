@@ -73,8 +73,8 @@ def save_config(ssid, password):
 
     if 'OTA_BASE_URL' not in existing:
         existing['OTA_BASE_URL'] = '"https://raw.githubusercontent.com/bosmun0224/cistern/main/"'
-    if 'OTA_FILES' not in existing:
-        existing['OTA_FILES'] = "['main.py', 'sensor.py', 'ota.py', 'firebase.py']"
+    # OTA_FILES is defined in ota.py, not config.py — remove if present from old versions
+    existing.pop('OTA_FILES', None)
     if 'FIREBASE_PROJECT_ID' not in existing:
         existing['FIREBASE_PROJECT_ID'] = '"cistern-blomquist"'
     if 'FIREBASE_API_KEY' not in existing:

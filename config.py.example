@@ -11,6 +11,4 @@ FIREBASE_API_KEY = "AIzaSyCMvUgbaUvekblMsrPx7Pg9sPrmgB4iPk4"
 
 # OTA Updates - GitHub raw URL to your repo
 OTA_BASE_URL = "https://raw.githubusercontent.com/bosmun0224/cistern/main/"
-
-# Files to update via OTA (boot.py excluded to prevent bricking)
-OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py', 'log.py']
+# OTA_FILES is defined in ota.py (not here) so it auto-updates via OTA

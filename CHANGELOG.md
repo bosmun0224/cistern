@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.1] - 2026-04-17
+
+- Fix: OTA_FILES now defined in ota.py (not config.py) so new files propagate via OTA
+- Removes stale OTA_FILES from config.py on next provisioning
+- Prevents chicken-and-egg problem where config.py overrides ota.py's file list
+
 ## [1.8.0] - 2026-04-17
 
 - Remote error visibility: last WARN/ERR included in every Firebase reading as `last_error`
