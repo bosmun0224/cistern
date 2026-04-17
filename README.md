@@ -7,45 +7,55 @@ Remote cistern water level monitoring using a Raspberry Pi Pico W with OTA updat
 | Component | Purpose |
 |-----------|---------|
 | Pico W | Microcontroller with WiFi |
-| 4-20mA depth sensor | Submersible pressure transducer |
-| HW-685 | Current-to-voltage converter |
+| 4-20mA depth sensor | Submersible pressure transducer (5m range) |
+| MT3608 | DC-DC boost converter (5V → 24V) |
+| 220Ω resistor (×2) | Shunt resistor + voltage divider |
 | ADS1115 | 16-bit ADC (I2C) |
 
 ## Wiring
 
-```mermaid
-graph TD
-    USB[USB Micro 5V] --> VBUS[Pico W - VBUS]
+The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flows through a 220Ω shunt resistor, producing 0.88–4.40V. A 2:1 voltage divider (two 220Ω resistors) halves this to 0.44–2.20V, safe for the 3.3V ADS1115.
 
-    VBUS -->|5V| VCC[HW-685 VCC]
-    SENSOR_RED[Sensor Red] --> VCC
-    SENSOR_BLK[Sensor Black] --> IP[HW-685 I+]
-
-    VOUT[HW-685 VOUT] --> A0[ADS1115 A0]
-
-    PICO_3V3[Pico W - 3V3] --> ADS_VDD[ADS1115 VDD]
-    PICO_GND[Pico W - GND] --> ADS_GND[ADS1115 GND]
-    PICO_GND --> HW_GND[HW-685 GND]
-    ADS_GND ---|jumper| ADS_ADDR[ADS1115 ADDR]
-
-    ADS_SDA[ADS1115 SDA] --> GP4[Pico W - GP4]
-    ADS_SCL[ADS1115 SCL] --> GP5[Pico W - GP5]
+```
+ MT3608 24V ──── Sensor RED (+)
+                 Sensor BLACK (-) ──── Shunt 220Ω ──── GND
+                                           │
+                                      (0.88-4.40V)
+                                           │
+                                      ┌── 220Ω ──┬── 220Ω ──┐
+                                      │           │           │
+                                 (shunt high)  ADS1115 A0    GND
+                                              (0.44-2.20V)
 ```
 
 **Pin connections:**
 
 | From | To |
 |------|-----|
-| Pico VBUS (5V) | HW-685 VCC |
-| Pico GND | HW-685 GND |
-| Pico GND | ADS1115 GND |
+| Pico VBUS (5V) | MT3608 IN+ |
+| Pico GND | MT3608 IN- |
+| MT3608 OUT+ (24V) | Sensor Red (+) |
+| Sensor Black (-) | Shunt 220Ω (high side) |
+| Shunt 220Ω (low side) | GND |
+| Shunt high side | Divider 220Ω → midpoint → 220Ω → GND |
+| Divider midpoint | ADS1115 A0 |
 | Pico 3V3 | ADS1115 VDD |
+| Pico GND | ADS1115 GND |
+| ADS1115 GND | ADS1115 ADDR (address 0x48) |
 | Pico GP4 | ADS1115 SDA |
 | Pico GP5 | ADS1115 SCL |
-| ADS1115 ADDR | GND (0x48) |
-| HW-685 VOUT | ADS1115 A0 |
-| Sensor Red | HW-685 VCC |
-| Sensor Black | HW-685 I+ |
+
+## Calibration
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| v_min | 1.76V | Sensor in air (~8mA), after ×2 divider compensation |
+| v_max | 4.40V | Sensor at max depth (20mA), after ×2 divider compensation |
+| depth_max_m | 5.0 | Sensor maximum depth rating |
+| tank_radius_in | 28.8 | Norwesco 1500 gal horizontal cylinder |
+| tank_length_in | 133 | Tank body length |
+
+Software applies `DIVIDER_RATIO = 2.0` to the raw ADC voltage to recover the actual shunt voltage.
 
 ## Setup
 

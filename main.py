@@ -89,7 +89,7 @@ def main():
 
             # Sanity check: skip posting if voltage is out of plausible range
             v = data['voltage']
-            if v < 0.3 or v > 3.6:
+            if v < 0.5 or v > 5.0:
                 print(f"Voltage out of range ({v}V) — sensor disconnected?")
                 blink(4, 0.15)
                 time.sleep(READ_INTERVAL)

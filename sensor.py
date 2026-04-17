@@ -1,5 +1,8 @@
-# sensor.py - Water depth sensor via HW-685 + ADS1115
-# HW-685 VOUT -> ADS1115 A0 (I2C) -> Pico W (GP4/GP5)
+# sensor.py - Water depth sensor via 220Ω shunt + ADS1115
+# 4-20mA sensor -> 220Ω shunt -> 220Ω/220Ω voltage divider -> ADS1115 A0 (I2C)
+# Shunt voltage: 0.88V (4mA) to 4.40V (20mA)
+# After divider:  0.44V (4mA) to 2.20V (20mA) — safe for 3.3V ADS1115
+# Software multiplies ADC reading by 2 to recover actual shunt voltage
 
 from machine import I2C, Pin
 import time
@@ -33,10 +36,15 @@ def read_adc(channel=0):
     return value
 
 
+# Voltage divider ratio: 220Ω / (220Ω + 220Ω) = 0.5, so multiply by 2
+DIVIDER_RATIO = 2.0
+
+
 def read_voltage(channel=0):
-    """Read voltage from ADS1115 channel"""
+    """Read voltage from ADS1115 channel, compensated for voltage divider"""
     raw = read_adc(channel)
-    voltage = raw * 4.096 / 32767
+    adc_voltage = raw * 4.096 / 32767
+    voltage = adc_voltage * DIVIDER_RATIO
     return raw, voltage
 
 
