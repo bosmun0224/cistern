@@ -1,0 +1,37 @@
+# Changelog
+
+## [1.4.0] - 2026-04-17
+
+- Show firmware version on dashboard (bottom-right corner)
+
+## [1.3.0] - 2026-04-17
+
+- Include firmware version in every Firebase reading
+- Enforce strict Firestore field allowlist via `hasOnly` rules
+
+## [1.2.0] - 2026-04-17
+
+- Check for OTA updates every hour in main loop (no reboot needed)
+
+## [1.1.0] - 2026-04-17
+
+- Remove unnecessary `DIVIDER_RATIO = 2.0` — report actual ADC voltage
+- Poll ADS1115 conversion-ready bit instead of fixed 10ms sleep
+- Fix calibration values: v_min=0.88V, v_max=4.40V (actual ADC readings)
+- Sanity bounds updated to 0.3–3.3V
+- Add periodic NTP re-sync every 6 hours
+- Replace incomplete URL decoder with generic `%XX` handler in provisioning
+- Align `OTA_FILES` fallback default across ota.py, config.py.example, provision.py
+- Escape quotes in WiFi credentials during provisioning
+- Fix `~8mA` → `4mA` in README and seed_calibration.py
+
+## [1.0.0] - 2026-04-08
+
+- Initial release
+- 4-20mA sensor reading via ADS1115 over I2C
+- WiFi provisioning via captive portal
+- Firebase Firestore integration with 30-day TTL
+- OTA updates from GitHub on boot
+- Web dashboard with tank visualization, charts, device telemetry
+- Debug mode via GP15 jumper or Ctrl+C
+- Terraform infrastructure for Firebase project
