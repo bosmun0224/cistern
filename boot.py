@@ -3,6 +3,7 @@ import network
 import time
 from machine import Pin
 from provision import has_config
+import log
 
 wlan = None
 
@@ -22,6 +23,7 @@ def check_debug_mode():
 
 print("\n=== Cistern Boot ===")
 print("Press Ctrl+C within 3s for REPL, or jumper GP15->GND for debug mode...")
+log.info('Boot started')
 
 if check_debug_mode():
     raise SystemExit  # Stops boot.py, skips main.py — lands in REPL
@@ -38,9 +40,9 @@ def sync_ntp():
         import ntptime
         ntptime.settime()
         t = time.localtime()
-        print(f"NTP synced: {t[0]:04d}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d}:{t[5]:02d} UTC")
+        log.info(f'NTP synced: {t[0]:04d}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d}:{t[5]:02d} UTC')
     except Exception as e:
-        print(f"NTP sync failed: {e}")
+        log.warn(f'NTP sync failed: {e}')
 
 def connect_wifi():
     global wlan
@@ -58,7 +60,7 @@ def connect_wifi():
     wlan.active(True)
     
     if wlan.isconnected():
-        print(f"Already connected: {wlan.ifconfig()[0]}")
+        log.info(f'Already connected: {wlan.ifconfig()[0]}')
         return True
     
     print(f"Connecting to {WIFI_SSID}...")
@@ -73,11 +75,11 @@ def connect_wifi():
     print()
     
     if wlan.isconnected():
-        print(f"Connected: {wlan.ifconfig()[0]}")
+        log.info(f'WiFi connected: {wlan.ifconfig()[0]}')
         sync_ntp()
         return True
     else:
-        print("WiFi connection failed")
+        log.warn('WiFi connection failed')
         wlan.disconnect()
         return False
 
@@ -97,12 +99,10 @@ def connect_wifi_with_retries(max_retries=3, delay=10):
 # Boot flow
 if has_config():
     if not connect_wifi_with_retries():
-        # WiFi creds exist but connection failed — start provisioning
-        print("Connection failed, starting setup mode...")
+        log.warn('All WiFi attempts failed, starting provisioning')
         from provision import run_server
         run_server()
 else:
-    # No config — start provisioning
-    print("No WiFi configured, starting setup mode...")
+    log.info('No WiFi configured, starting provisioning')
     from provision import run_server
     run_server()

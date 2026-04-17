@@ -4,6 +4,7 @@ import gc
 import os
 from machine import Pin, ADC
 
+import log
 from sensor import read_sensor, scan_i2c
 from ota import check_for_updates
 from firebase import post_reading
@@ -120,22 +121,22 @@ def ensure_wifi():
 
 
 def main():
-    print("\n=== Cistern Monitor ===")
-    print("(Ctrl+C to drop to REPL)\n")
+    log.info('=== Cistern Monitor ===')
     
     # Check I2C devices
-    print("Scanning I2C bus...")
     devices = scan_i2c()
     if 0x48 not in devices:
-        print("WARNING: ADS1115 not found at 0x48")
+        log.warn('ADS1115 not found at 0x48')
         blink(5, 0.2)
+    else:
+        log.info('ADS1115 found on I2C')
     
     # Check for OTA updates
-    print("\n--- OTA Check ---")
+    log.info('OTA check on boot')
     check_for_updates(auto_reboot=True)
     
     # Main loop
-    print("\n--- Starting sensor loop ---")
+    log.info('Starting sensor loop')
     loop_count = 0
     ota_count = 0
     send_buffer = []
@@ -148,14 +149,12 @@ def main():
             # Sanity check: skip posting if voltage is out of plausible range
             v = data['voltage']
             if v < 0.3 or v > 3.3:
-                print(f"Voltage out of range ({v}V) — sensor disconnected?")
+                log.warn(f'Voltage out of range: {v}V')
                 blink(4, 0.15)
                 time.sleep(READ_INTERVAL)
                 continue
 
-            print(f"Voltage: {data['voltage']}V | Raw: {data['raw']} | "
-                  f"RSSI: {data.get('rssi', '?')}dBm | "
-                  f"FreeMem: {data.get('free_mem', '?')}B")
+            log.info(f'V={data["voltage"]}V raw={data["raw"]} RSSI={data.get("rssi", "?")} mem={data.get("free_mem", "?")}')
             
             blink(1)  # Heartbeat
             
@@ -167,30 +166,29 @@ def main():
             if ensure_wifi():
                 # Flush buffered readings first
                 if send_buffer:
-                    print(f"  Flushing {len(send_buffer)} buffered reading(s)...")
+                    log.info(f'Flushing {len(send_buffer)} buffered reading(s)')
                     still_failed = []
                     for buffered in send_buffer:
                         if not post_reading(buffered):
                             still_failed.append(buffered)
-                            break  # stop flushing on first failure
+                            break
                     send_buffer = still_failed
 
                 if not post_reading(data):
-                    print("  Firebase post failed, buffering")
+                    log.warn('Firebase post failed, buffering')
                     send_buffer.append(data)
             else:
-                print("  No WiFi — buffering reading")
+                log.warn('No WiFi — buffering reading')
                 send_buffer.append(data)
             
-            # Cap buffer to prevent OOM
             if len(send_buffer) > SEND_BUFFER_MAX:
                 dropped = len(send_buffer) - SEND_BUFFER_MAX
                 send_buffer = send_buffer[-SEND_BUFFER_MAX:]
-                print(f"  Buffer full, dropped {dropped} oldest reading(s)")
+                log.warn(f'Buffer full, dropped {dropped} oldest')
             
         except Exception as e:
-            print(f"Error reading sensor: {e}")
-            blink(3, 0.2)  # Error blink
+            log.error(f'Sensor loop error: {e}')
+            blink(3, 0.2)
         
         loop_count += 1
         ota_count += 1
@@ -205,9 +203,10 @@ def main():
         if ota_count >= OTA_CHECK_INTERVAL:
             ota_count = 0
             try:
+                log.info('Hourly OTA check')
                 check_for_updates(auto_reboot=True)
             except Exception as e:
-                print(f"OTA check failed: {e}")
+                log.error(f'OTA check failed: {e}')
         
         time.sleep(READ_INTERVAL)
 
@@ -217,8 +216,10 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         print("\n\n*** Ctrl+C — stopped. You're in the REPL. ***")
-        print("Useful commands:")
-        print("  from sensor import read_sensor, scan_i2c")
-        print("  scan_i2c()          # list I2C devices")
+        print("  log.read_log()      # view recent log")
+        print("  from sensor import read_sensor")
         print("  read_sensor()       # take a sensor reading")
         print("  import machine; machine.reset()  # reboot")
+    except Exception as e:
+        log.error(f'Unhandled crash: {e}')
+        raise

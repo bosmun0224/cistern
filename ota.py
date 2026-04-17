@@ -7,7 +7,7 @@ try:
     from config import OTA_BASE_URL, OTA_FILES
 except ImportError:
     OTA_BASE_URL = None
-    OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py']
+    OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py', 'log.py']
 
 
 def get_local_version():

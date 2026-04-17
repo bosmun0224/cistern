@@ -1,6 +1,7 @@
 # firebase.py - Post sensor readings to Firebase Firestore REST API
 import urequests
 import time
+import log
 
 try:
     from config import FIREBASE_PROJECT_ID, FIREBASE_API_KEY
@@ -58,14 +59,14 @@ def post_reading(data):
     try:
         r = urequests.post(url, data=body, headers={"Content-Type": "application/json"})
         if r.status_code in (200, 201):
-            print(f"  Posted to Firebase: {data['voltage']}V")
+            log.info(f'Firebase OK: {data["voltage"]}V')
             r.close()
             return True
         else:
-            print(f"  Firebase error: {r.status_code}")
+            log.warn(f'Firebase HTTP {r.status_code}')
             r.close()
     except Exception as e:
-        print(f"  Firebase post failed: {e}")
+        log.error(f'Firebase post failed: {e}')
 
     return False
 

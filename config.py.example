@@ -13,4 +13,4 @@ FIREBASE_API_KEY = "AIzaSyCMvUgbaUvekblMsrPx7Pg9sPrmgB4iPk4"
 OTA_BASE_URL = "https://raw.githubusercontent.com/bosmun0224/cistern/main/"
 
 # Files to update via OTA (boot.py excluded to prevent bricking)
-OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py']
+OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py', 'log.py']

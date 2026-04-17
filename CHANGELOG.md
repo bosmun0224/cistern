@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0] - 2026-04-17
+
+- Persistent file logging (log.py): writes to device.log on flash with auto-truncation at 16KB
+- All key events logged: boot, WiFi, sensor reads, Firebase posts, OTA checks, errors
+- Read logs via REPL: `log.read_log()` or `mpremote cat :device.log`
+- Unhandled crashes logged before re-raise
+
 ## [1.6.1] - 2026-04-17
 
 - Fix: buffered readings now keep their original timestamp instead of flush time
