@@ -9,23 +9,19 @@ Remote cistern water level monitoring using a Raspberry Pi Pico W with OTA updat
 | Pico W | Microcontroller with WiFi |
 | 4-20mA depth sensor | Submersible pressure transducer (5m range) |
 | MT3608 | DC-DC boost converter (5V → 24V) |
-| 220Ω resistor (×2) | Shunt resistor + voltage divider |
+| 220Ω resistor (×2) | Shunt + voltage divider (in series) |
 | ADS1115 | 16-bit ADC (I2C) |
 
 ## Wiring
 
-The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flows through a 220Ω shunt resistor, producing 0.88–4.40V. A 2:1 voltage divider (two 220Ω resistors) halves this to 0.44–2.20V, safe for the 3.3V ADS1115.
+The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flows through two 220Ω resistors in series (440Ω total). The ADS1115 reads the midpoint, which is half the total voltage — safe for the 3.3V ADC.
 
 ```
  MT3608 24V ──── Sensor RED (+)
-                 Sensor BLACK (-) ──── Shunt 220Ω ──── GND
-                                           │
-                                      (0.88-4.40V)
-                                           │
-                                      ┌── 220Ω ──┬── 220Ω ──┐
-                                      │           │           │
-                                 (shunt high)  ADS1115 A0    GND
-                                              (0.44-2.20V)
+                 Sensor BLACK (-) ──┬── 220Ω ──┬── 220Ω ──── GND
+                                    │           │
+                               (full shunt)  ADS1115 A0
+                               (1.76-4.40V) (0.88-2.20V)
 ```
 
 **Pin connections:**
@@ -35,9 +31,7 @@ The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flo
 | Pico VBUS (5V) | MT3608 IN+ |
 | Pico GND | MT3608 IN- |
 | MT3608 OUT+ (24V) | Sensor Red (+) |
-| Sensor Black (-) | Shunt 220Ω (high side) |
-| Shunt 220Ω (low side) | GND |
-| Shunt high side | Divider 220Ω → midpoint → 220Ω → GND |
+| Sensor Black (-) | 220Ω → midpoint → 220Ω → GND |
 | Divider midpoint | ADS1115 A0 |
 | Pico 3V3 | ADS1115 VDD |
 | Pico GND | ADS1115 GND |
