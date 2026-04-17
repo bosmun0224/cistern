@@ -75,7 +75,11 @@ resource "google_firebaserules_ruleset" "firestore" {
             match /readings/{reading} {
               allow read: if true;
               allow create: if request.resource.data.keys().hasAll(['voltage', 'raw', 'timestamp', 'expireAt'])
+                           && request.resource.data.keys().hasOnly(['voltage', 'raw', 'timestamp', 'expireAt',
+                                'rssi', 'free_mem', 'used_storage', 'total_storage', 'cpu_temp', 'version'])
                            && request.resource.data.voltage is number
+                           && request.resource.data.raw is int
+                           && request.resource.data.timestamp is timestamp
                            && request.resource.data.expireAt is timestamp;
               allow update, delete: if false;
             }
