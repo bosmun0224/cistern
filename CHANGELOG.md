@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.0] - 2026-04-17
+
+- Buffer failed readings in memory and flush when connectivity returns
+- Cap buffer at 30 readings (~30 min offline) to prevent OOM
+- Stop flush on first failure to avoid hammering a dead connection
+
 ## [1.5.0] - 2026-04-17
 
 - WiFi retry on boot: 3 attempts with 10s delay before falling back to provisioning

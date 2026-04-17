@@ -24,6 +24,9 @@ OTA_CHECK_INTERVAL = (1 * 3600) // READ_INTERVAL
 WIFI_MAX_RETRIES = 5
 WIFI_RETRY_DELAY = 10
 
+# Max readings to buffer when Firebase is unreachable
+SEND_BUFFER_MAX = 30
+
 
 def blink(times=1, duration=0.1):
     """Blink onboard LED"""
@@ -135,6 +138,7 @@ def main():
     print("\n--- Starting sensor loop ---")
     loop_count = 0
     ota_count = 0
+    send_buffer = []
     while True:
         try:
             data = read_sensor()
@@ -156,9 +160,28 @@ def main():
             blink(1)  # Heartbeat
             
             if ensure_wifi():
-                post_reading(data)
+                # Flush buffered readings first
+                if send_buffer:
+                    print(f"  Flushing {len(send_buffer)} buffered reading(s)...")
+                    still_failed = []
+                    for buffered in send_buffer:
+                        if not post_reading(buffered):
+                            still_failed.append(buffered)
+                            break  # stop flushing on first failure
+                    send_buffer = still_failed
+
+                if not post_reading(data):
+                    print("  Firebase post failed, buffering")
+                    send_buffer.append(data)
             else:
-                print("  Skipping Firebase post (no WiFi)")
+                print("  No WiFi — buffering reading")
+                send_buffer.append(data)
+            
+            # Cap buffer to prevent OOM
+            if len(send_buffer) > SEND_BUFFER_MAX:
+                dropped = len(send_buffer) - SEND_BUFFER_MAX
+                send_buffer = send_buffer[-SEND_BUFFER_MAX:]
+                print(f"  Buffer full, dropped {dropped} oldest reading(s)")
             
         except Exception as e:
             print(f"Error reading sensor: {e}")
