@@ -17,24 +17,37 @@ SETUP_PAGE = (
     "<!DOCTYPE html><html><head>"
     '<meta name="viewport" content="width=device-width,initial-scale=1">'
     "<title>Cistern Setup</title><style>"
-    "body{font-family:sans-serif;max-width:380px;margin:40px auto;padding:0 16px;background:#1a1a2e;color:#eee}"
-    "h1{background:#e94560;padding:10px;border-radius:8px;text-align:center}"
-    "label{display:block;margin-top:14px;font-weight:bold}"
-    "input{width:100%;padding:8px;margin-top:4px;border:1px solid #444;border-radius:6px;"
-    "box-sizing:border-box;font-size:16px;background:#16213e;color:#eee}"
-    "button{width:100%;padding:10px;margin-top:20px;background:#e94560;color:#fff;"
-    "border:none;border-radius:6px;font-size:18px}"
-    ".msg{padding:10px;border-radius:6px;margin-bottom:14px;text-align:center}"
-    ".err{background:#e94560}.ok{background:#0ead69}"
-    "</style></head><body><h1>Cistern Monitor</h1>"
+    "*{margin:0;padding:0;box-sizing:border-box}"
+    "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+    "background:#0f172a;color:#e2e8f0;min-height:100vh;padding:20px}"
+    ".wrap{max-width:400px;margin:0 auto}"
+    ".card{background:#1e293b;border-radius:16px;padding:24px;margin-bottom:16px}"
+    "h1{text-align:center;font-size:1.4rem;margin-bottom:20px;color:#38bdf8}"
+    ".icon{text-align:center;font-size:2.5rem;margin-bottom:8px}"
+    "label{display:block;margin-top:16px;font-size:.875rem;color:#94a3b8;font-weight:600}"
+    "input{width:100%;padding:12px;margin-top:6px;border:1px solid #334155;border-radius:10px;"
+    "font-size:16px;background:#0f172a;color:#e2e8f0;outline:none}"
+    "input:focus{border-color:#38bdf8}"
+    "button{width:100%;padding:14px;margin-top:24px;background:#38bdf8;color:#0f172a;"
+    "border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer}"
+    "button:active{background:#0ea5e9}"
+    ".msg{padding:12px;border-radius:10px;margin-bottom:16px;text-align:center;font-weight:600}"
+    ".err{background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b}"
+    ".sub{text-align:center;margin-top:16px;font-size:.8rem;color:#64748b}"
+    "</style></head><body><div class=wrap>"
+    '<div class="icon">&#x1F4A7;</div>'
+    "<h1>Cistern Setup</h1>"
+    '<div class="card">'
     "__MSG__"
     '<form method="POST" action="http://192.168.4.1/save">'
-    "<label>WiFi Name</label>"
-    '<input name="ssid" value="__PREV_SSID__" required>'
+    "<label>WiFi Network Name</label>"
+    '<input name="ssid" value="__PREV_SSID__" placeholder="Your WiFi SSID" required>'
     "<label>WiFi Password</label>"
-    '<input type="password" name="password" required>'
-    "<button type=\"submit\">Test &amp; Save</button>"
-    "</form></body></html>"
+    '<input type="password" name="password" placeholder="Enter password" required>'
+    '<button type="submit">Test &amp; Save</button>'
+    "</form></div>"
+    '<p class="sub">Cistern Monitor &middot; WiFi Setup</p>'
+    "</div></body></html>"
 )
 
 TESTING_PAGE = (
@@ -43,16 +56,26 @@ TESTING_PAGE = (
     '<meta name="viewport" content="width=device-width,initial-scale=1">'
     '<meta http-equiv="refresh" content="20;url=http://192.168.4.1/result">'
     "<title>Testing...</title><style>"
-    "body{font-family:sans-serif;max-width:380px;margin:40px auto;padding:0 16px;"
-    "background:#1a1a2e;color:#eee;text-align:center}"
-    "h1{background:#e94560;padding:10px;border-radius:8px}"
-    ".spin{font-size:48px;animation:spin 1s linear infinite;display:inline-block}"
+    "*{margin:0;padding:0;box-sizing:border-box}"
+    "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+    "background:#0f172a;color:#e2e8f0;min-height:100vh;padding:20px}"
+    ".wrap{max-width:400px;margin:0 auto;text-align:center}"
+    ".card{background:#1e293b;border-radius:16px;padding:32px;margin-bottom:16px}"
+    "h1{font-size:1.4rem;margin-bottom:20px;color:#38bdf8}"
+    ".spin{font-size:3rem;animation:spin 1.5s linear infinite;display:inline-block;margin:16px 0}"
     "@keyframes spin{to{transform:rotate(360deg)}}"
-    "</style></head><body><h1>Testing WiFi</h1>"
-    '<p class="spin">&#x21bb;</p>'
-    "<p>Connecting to <strong>__SSID__</strong>...</p>"
-    "<p>This takes ~15 seconds. Page will update automatically.</p>"
-    "</body></html>"
+    "p{margin:8px 0;color:#94a3b8}"
+    "strong{color:#e2e8f0}"
+    ".sub{font-size:.8rem;color:#64748b;margin-top:16px}"
+    "</style></head><body><div class=wrap>"
+    '<div class="card">'
+    "<h1>Testing WiFi</h1>"
+    '<p class="spin">&#x1F4A7;</p>'
+    "<p>Connecting to <strong>__SSID__</strong></p>"
+    "<p>This takes about 15 seconds...</p>"
+    "</div>"
+    '<p class="sub">Page will refresh automatically</p>'
+    "</div></body></html>"
 )
 
 SUCCESS_PAGE = (
@@ -60,13 +83,22 @@ SUCCESS_PAGE = (
     "<!DOCTYPE html><html><head>"
     '<meta name="viewport" content="width=device-width,initial-scale=1">'
     "<title>Connected!</title><style>"
-    "body{font-family:sans-serif;max-width:380px;margin:40px auto;padding:0 16px;"
-    "background:#1a1a2e;color:#eee;text-align:center}"
-    "h1{background:#0ead69;padding:10px;border-radius:8px}"
-    "</style></head><body><h1>Connected!</h1>"
+    "*{margin:0;padding:0;box-sizing:border-box}"
+    "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+    "background:#0f172a;color:#e2e8f0;min-height:100vh;padding:20px}"
+    ".wrap{max-width:400px;margin:0 auto;text-align:center}"
+    ".card{background:#1e293b;border-radius:16px;padding:32px}"
+    "h1{font-size:1.4rem;margin-bottom:12px;color:#4ade80}"
+    ".icon{font-size:3rem;margin-bottom:16px}"
+    "p{margin:8px 0;color:#94a3b8}"
+    "strong{color:#e2e8f0}"
+    "</style></head><body><div class=wrap>"
+    '<div class="card">'
+    '<div class="icon">&#x2705;</div>'
+    "<h1>Connected!</h1>"
     "<p>Successfully connected to <strong>__SSID__</strong></p>"
     "<p>Credentials saved. Rebooting now...</p>"
-    "</body></html>"
+    "</div></div></body></html>"
 )
 
 
