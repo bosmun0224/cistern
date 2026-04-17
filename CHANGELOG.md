@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.2] - 2026-04-17
+
+- Fix: clear last_error after successful WiFi connect (prevents stale boot warnings)
+
 ## [1.8.1] - 2026-04-17
 
 - Fix: OTA_FILES now defined in ota.py (not config.py) so new files propagate via OTA

@@ -76,6 +76,7 @@ def connect_wifi():
     
     if wlan.isconnected():
         log.info(f'WiFi connected: {wlan.ifconfig()[0]}')
+        log.last_error = None
         sync_ntp()
         return True
     else:

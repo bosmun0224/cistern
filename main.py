@@ -113,6 +113,7 @@ def ensure_wifi():
             timeout -= 1
         if wlan.isconnected():
             print(f"  Reconnected: {wlan.ifconfig()[0]}")
+            log.last_error = None
             blink(2, 0.1)
             return True
         wlan.disconnect()
