@@ -17,6 +17,9 @@ READ_INTERVAL = 60
 # Re-sync NTP every 6 hours (in loop iterations)
 NTP_SYNC_INTERVAL = (6 * 3600) // READ_INTERVAL
 
+# Check for OTA updates every hour (in loop iterations)
+OTA_CHECK_INTERVAL = (1 * 3600) // READ_INTERVAL
+
 
 def blink(times=1, duration=0.1):
     """Blink onboard LED"""
@@ -85,6 +88,7 @@ def main():
     # Main loop
     print("\n--- Starting sensor loop ---")
     loop_count = 0
+    ota_count = 0
     while True:
         try:
             data = read_sensor()
@@ -112,6 +116,7 @@ def main():
             blink(3, 0.2)  # Error blink
         
         loop_count += 1
+        ota_count += 1
         if loop_count >= NTP_SYNC_INTERVAL:
             loop_count = 0
             try:
@@ -119,6 +124,13 @@ def main():
                 ntptime.settime()
             except Exception:
                 pass
+
+        if ota_count >= OTA_CHECK_INTERVAL:
+            ota_count = 0
+            try:
+                check_for_updates(auto_reboot=True)
+            except Exception as e:
+                print(f"OTA check failed: {e}")
         
         time.sleep(READ_INTERVAL)
 
