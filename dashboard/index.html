@@ -218,6 +218,7 @@
         .status-text { font-size: 0.875rem; color: #94a3b8; }
 
         .last-updated { font-size: 0.75rem; color: #475569; text-align: center; margin-top: 12px; }
+        .firmware-version { position: fixed; bottom: 8px; right: 12px; font-size: 0.65rem; color: #475569; }
     </style>
 </head>
 <body>
@@ -349,6 +350,7 @@
 
         <div class="last-updated" id="updatedAt"></div>
     </div>
+    <div class="firmware-version" id="fwVersion"></div>
 
     <script>
         // ---- Config ----
@@ -462,6 +464,7 @@
                 cpu_temp: f.cpu_temp ? parseFloat(f.cpu_temp.doubleValue || f.cpu_temp.integerValue) : null,
                 total_storage: f.total_storage ? parseInt(f.total_storage.integerValue) : null,
                 used_storage: f.used_storage ? parseInt(f.used_storage.integerValue) : null,
+                version: f.version ? f.version.stringValue : null,
             };
         }
 
@@ -537,6 +540,10 @@
             document.getElementById('depthDisplay').textContent = reading.depth_in.toFixed(1);
 
             document.getElementById('updatedAt').textContent = `Last updated: ${reading.timestamp.toLocaleString()}`;
+
+            if (reading.version) {
+                document.getElementById('fwVersion').textContent = `fw ${reading.version}`;
+            }
 
             // Device telemetry (all as percentages)
             const hasTelemetry = reading.rssi !== null || reading.free_mem !== null;
