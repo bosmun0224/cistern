@@ -17,11 +17,11 @@ Remote cistern water level monitoring using a Raspberry Pi Pico W with OTA updat
 The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flows through two 220Ω resistors in series (440Ω total). The ADS1115 reads the midpoint, which is half the total voltage — safe for the 3.3V ADC.
 
 ```
- MT3608 24V ──── Sensor RED (+)
-                 Sensor BLACK (-) ── 220Ω ──┬── 220Ω ── GND
-                                             │
-                                         ADS1115 A0
-                                        (0.88-2.20V)
+ MT3608 VOUT+ (24V) ──── Sensor RED (+)
+                         Sensor BLACK (-) ── 220Ω ──┬── 220Ω ── MT3608 VOUT-
+                                                     │
+                                                 ADS1115 A0
+                                                (0.88-2.20V)
 ```
 
 **Pin connections:**
