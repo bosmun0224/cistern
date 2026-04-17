@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0] - 2026-04-17
+
+- WiFi retry on boot: 3 attempts with 10s delay before falling back to provisioning
+- WiFi reconnect in main loop: 5 attempts with 10s delay if connection drops
+- Sensor readings continue even without WiFi (Firebase posts skipped until reconnected)
+
 ## [1.4.0] - 2026-04-17
 
 - Show firmware version on dashboard (bottom-right corner)

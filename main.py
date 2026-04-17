@@ -20,6 +20,10 @@ NTP_SYNC_INTERVAL = (6 * 3600) // READ_INTERVAL
 # Check for OTA updates every hour (in loop iterations)
 OTA_CHECK_INTERVAL = (1 * 3600) // READ_INTERVAL
 
+# WiFi reconnect settings
+WIFI_MAX_RETRIES = 5
+WIFI_RETRY_DELAY = 10
+
 
 def blink(times=1, duration=0.1):
     """Blink onboard LED"""
@@ -77,6 +81,41 @@ def get_device_telemetry():
     return telemetry
 
 
+def ensure_wifi():
+    """Check WiFi and reconnect if needed. Returns True if connected."""
+    import network
+    wlan = network.WLAN(network.STA_IF)
+    if wlan.isconnected():
+        return True
+    
+    print("WiFi disconnected, reconnecting...")
+    wlan.active(True)
+    
+    try:
+        from config import WIFI_SSID, WIFI_PASSWORD
+    except ImportError:
+        return False
+    
+    for attempt in range(1, WIFI_MAX_RETRIES + 1):
+        print(f"  Attempt {attempt}/{WIFI_MAX_RETRIES}")
+        wlan.connect(WIFI_SSID, WIFI_PASSWORD)
+        timeout = 15
+        while not wlan.isconnected() and timeout > 0:
+            time.sleep(1)
+            timeout -= 1
+        if wlan.isconnected():
+            print(f"  Reconnected: {wlan.ifconfig()[0]}")
+            blink(2, 0.1)
+            return True
+        wlan.disconnect()
+        if attempt < WIFI_MAX_RETRIES:
+            time.sleep(WIFI_RETRY_DELAY)
+    
+    print("  WiFi reconnect failed")
+    blink(6, 0.1)
+    return False
+
+
 def main():
     print("\n=== Cistern Monitor ===")
     print("(Ctrl+C to drop to REPL)\n")
@@ -116,7 +155,10 @@ def main():
             
             blink(1)  # Heartbeat
             
-            post_reading(data)
+            if ensure_wifi():
+                post_reading(data)
+            else:
+                print("  Skipping Firebase post (no WiFi)")
             
         except Exception as e:
             print(f"Error reading sensor: {e}")

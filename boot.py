@@ -78,11 +78,25 @@ def connect_wifi():
         return True
     else:
         print("WiFi connection failed")
+        wlan.disconnect()
         return False
+
+
+def connect_wifi_with_retries(max_retries=3, delay=10):
+    """Try to connect to WiFi multiple times before giving up."""
+    for attempt in range(1, max_retries + 1):
+        print(f"\nWiFi attempt {attempt}/{max_retries}")
+        if connect_wifi():
+            return True
+        if attempt < max_retries:
+            print(f"Retrying in {delay}s...")
+            time.sleep(delay)
+    return False
+
 
 # Boot flow
 if has_config():
-    if not connect_wifi():
+    if not connect_wifi_with_retries():
         # WiFi creds exist but connection failed — start provisioning
         print("Connection failed, starting setup mode...")
         from provision import run_server
