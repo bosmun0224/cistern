@@ -140,6 +140,13 @@ def check_for_updates(auto_reboot=True):
         print("Update complete!")
         
         if auto_reboot:
+            print("Syncing filesystem before reboot...")
+            try:
+                os.sync()
+            except AttributeError:
+                pass  # os.sync() not available on all MicroPython builds
+            import time
+            time.sleep(1)
             print("Rebooting...")
             machine.reset()
         return True

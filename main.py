@@ -170,7 +170,22 @@ def ensure_wifi(force_recycle=False):
 
 
 def main():
-    log.info('=== Cistern Monitor ===')
+    log.info('=== Cistern Monitor main() start ===')
+    
+    # Log config state
+    try:
+        from config import WIFI_SSID, FIREBASE_PROJECT_ID, OTA_BASE_URL
+        log.info(f'Config: SSID={WIFI_SSID} project={FIREBASE_PROJECT_ID}')
+        log.info(f'Config: OTA={OTA_BASE_URL[:50] if OTA_BASE_URL else "None"}')
+    except Exception as e:
+        log.warn(f'Config read error in main: {e}')
+    
+    # Log WiFi state
+    import network
+    wlan = network.WLAN(network.STA_IF)
+    log.info(f'WiFi state: active={wlan.active()} connected={wlan.isconnected()} status={wlan.status()}')
+    if wlan.isconnected():
+        log.info(f'WiFi: IP={wlan.ifconfig()[0]} RSSI={wlan.status("rssi")}')
     
     # Check I2C devices
     devices = scan_i2c()
@@ -181,11 +196,12 @@ def main():
         log.info('ADS1115 found on I2C')
     
     # Check for OTA updates
-    log.info('OTA check on boot')
+    log.info('OTA check on boot...')
     check_for_updates(auto_reboot=True)
+    log.info('OTA check complete, no reboot needed')
     
     # Main loop
-    log.info('Starting sensor loop')
+    log.info('Entering sensor loop (interval={}s)'.format(READ_INTERVAL))
     loop_count = 0
     ota_count = 0
     send_buffer = []

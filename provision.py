@@ -7,6 +7,7 @@ import socket
 import select
 import time
 import os
+import log
 
 AP_SSID = "Cistern-Setup"
 AP_PASSWORD = "cistern123"
@@ -107,12 +108,16 @@ SUCCESS_PAGE = (
 def has_config():
     try:
         from config import WIFI_SSID, WIFI_PASSWORD
-        return bool(WIFI_SSID and WIFI_SSID != "your_wifi_name")
-    except (ImportError, AttributeError):
+        result = bool(WIFI_SSID and WIFI_SSID != "your_wifi_name")
+        log.info(f'has_config: SSID="{WIFI_SSID}" -> {result}')
+        return result
+    except (ImportError, AttributeError) as e:
+        log.info(f'has_config: no config ({e})')
         return False
 
 
 def save_config(ssid, password):
+    log.info(f'save_config: saving SSID="{ssid}"')
     existing = {}
     try:
         with open(CONFIG_FILE, 'r') as f:
@@ -145,6 +150,7 @@ def save_config(ssid, password):
     except:
         pass
     os.rename(temp, CONFIG_FILE)
+    log.info(f'Config saved to {CONFIG_FILE}: SSID={ssid}')
     print("Config saved: SSID=" + ssid)
 
 
@@ -172,6 +178,7 @@ def parse_form(body):
 
 def test_wifi(ssid, password, timeout=15):
     """Test WiFi credentials via STA interface (AP stays up). Returns (ok, reason)."""
+    log.info(f'test_wifi: testing SSID="{ssid}" timeout={timeout}s')
     sta = network.WLAN(network.STA_IF)
     sta.active(True)
     sta.connect(ssid, password)
@@ -181,6 +188,7 @@ def test_wifi(ssid, password, timeout=15):
         t -= 1
     if sta.isconnected():
         ip = sta.ifconfig()[0]
+        log.info(f'test_wifi: SUCCESS ip={ip}')
         sta.disconnect()
         sta.active(False)
         return True, ip
@@ -191,6 +199,7 @@ def test_wifi(ssid, password, timeout=15):
         network.STAT_CONNECT_FAIL: 'Connection failed',
     }
     reason = reasons.get(status, 'Timed out ({}s)'.format(timeout))
+    log.warn(f'test_wifi: FAILED status={status} reason={reason}')
     sta.disconnect()
     sta.active(False)
     return False, reason
@@ -318,8 +327,10 @@ def run_server():
                                 response = SUCCESS_PAGE.replace('__SSID__', ssid)
                                 conn.sendall(response)
                                 conn.close()
+                                log.info('Provision complete — credentials saved, rebooting in 2s')
                                 print("Credentials verified + saved, rebooting...")
                                 time.sleep(2)
+                                log.info('Shutting down AP and calling machine.reset()')
                                 ap.active(False)
                                 import machine
                                 machine.reset()

@@ -61,11 +61,14 @@ def connect_wifi():
     
     try:
         from config import WIFI_SSID, WIFI_PASSWORD
+        log.info(f'Config loaded — SSID: {WIFI_SSID}')
     except ImportError:
+        log.warn('No config.py found (ImportError)')
         WIFI_SSID = None
         WIFI_PASSWORD = None
     
     if not WIFI_SSID:
+        log.warn('WIFI_SSID is empty/None, skipping connect')
         return False
     
     wlan = network.WLAN(network.STA_IF)
@@ -114,27 +117,33 @@ def connect_wifi():
 
 def connect_wifi_with_retries(max_retries=3, delay=10):
     """Try to connect to WiFi multiple times before giving up."""
+    log.info(f'WiFi connect: up to {max_retries} attempts')
     for attempt in range(1, max_retries + 1):
-        print(f"\nWiFi attempt {attempt}/{max_retries}")
+        log.info(f'WiFi attempt {attempt}/{max_retries}')
         if connect_wifi():
             return True
         if attempt < max_retries:
-            print(f"Retrying in {delay}s...")
+            log.info(f'Retrying in {delay}s...')
             time.sleep(delay)
+    log.warn(f'All {max_retries} WiFi attempts exhausted')
     return False
 
 
 # Boot flow
+log.info('--- Boot flow decision ---')
 if check_provision_mode():
-    log.info('Forced provisioning mode via GP14 jumper')
+    log.info('Path: GP14 jumper -> forced provisioning')
     from provision import run_server
     run_server()
 elif has_config():
+    log.info('Path: config.py exists -> connecting WiFi')
     if not connect_wifi_with_retries():
-        log.warn('All WiFi attempts failed, starting provisioning')
+        log.warn('Path: WiFi failed -> fallback to provisioning')
         from provision import run_server
         run_server()
+    else:
+        log.info('Path: WiFi connected -> handing off to main.py')
 else:
-    log.info('No WiFi configured, starting provisioning')
+    log.info('Path: no config.py -> starting provisioning')
     from provision import run_server
     run_server()
