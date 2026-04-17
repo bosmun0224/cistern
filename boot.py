@@ -70,6 +70,7 @@ def connect_wifi():
     
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
+    wlan.config(reconnects=-1, pm=network.WLAN.PM_PERFORMANCE)
     
     if wlan.isconnected():
         log.info(f'Already connected: {wlan.ifconfig()[0]}')
@@ -92,7 +93,14 @@ def connect_wifi():
         sync_ntp()
         return True
     else:
-        log.warn('WiFi connection failed')
+        status = wlan.status()
+        reasons = {
+            network.STAT_WRONG_PASSWORD: 'wrong password',
+            network.STAT_NO_AP_FOUND: 'no AP found',
+            network.STAT_CONNECT_FAIL: 'connect fail',
+        }
+        reason = reasons.get(status, f'status={status}')
+        log.warn(f'WiFi connection failed: {reason}')
         wlan.disconnect()
         return False
 

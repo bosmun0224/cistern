@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0] - 2026-04-17
+
+- WiFi hardening: enable CYW43 auto-reconnect (`reconnects=-1`) so firmware handles transient drops
+- Set `PM_PERFORMANCE` power management — prevents power-save-induced disconnects
+- Log specific WiFi failure reasons via `wlan.status()` (wrong password, no AP found, connect fail)
+- Applies to both boot.py (initial connect) and main.py (runtime reconnect)
+
 ## [1.9.0] - 2026-04-17
 
 - Field provisioning: jumper GP14 to GND at boot to force WiFi AP setup mode

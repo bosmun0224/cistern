@@ -98,6 +98,7 @@ def ensure_wifi():
     
     print("WiFi disconnected, reconnecting...")
     wlan.active(True)
+    wlan.config(reconnects=-1, pm=network.WLAN.PM_PERFORMANCE)
     
     try:
         from config import WIFI_SSID, WIFI_PASSWORD
@@ -116,6 +117,14 @@ def ensure_wifi():
             log.last_error = None
             blink(2, 0.1)
             return True
+        status = wlan.status()
+        reasons = {
+            network.STAT_WRONG_PASSWORD: 'wrong password',
+            network.STAT_NO_AP_FOUND: 'no AP found',
+            network.STAT_CONNECT_FAIL: 'connect fail',
+        }
+        reason = reasons.get(status, f'status={status}')
+        log.warn(f'WiFi attempt {attempt} failed: {reason}')
         wlan.disconnect()
         if attempt < WIFI_MAX_RETRIES:
             time.sleep(WIFI_RETRY_DELAY)
