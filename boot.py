@@ -88,6 +88,13 @@ def connect_wifi():
     print()
     
     if wlan.isconnected():
+        # Ensure AP interface is off (can interfere with STA on CYW43)
+        try:
+            ap = network.WLAN(network.AP_IF)
+            if ap.active():
+                ap.active(False)
+        except:
+            pass
         log.info(f'WiFi connected: {wlan.ifconfig()[0]}')
         log.last_error = None
         sync_ntp()

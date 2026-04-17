@@ -3,6 +3,9 @@ import time
 import gc
 import os
 from machine import Pin, ADC
+import socket as _socket
+
+_socket.setdefaulttimeout(10)
 
 import log
 from sensor import read_sensor, scan_i2c
@@ -27,6 +30,15 @@ WIFI_RETRY_DELAY = 10
 
 # Max readings to buffer when Firebase is unreachable
 SEND_BUFFER_MAX = 30
+
+# Software watchdog: reboot if no successful loop in 5 minutes
+WATCHDOG_TIMEOUT_MS = 5 * 60 * 1000
+
+# Force WiFi recycle after consecutive Firebase post failures
+WIFI_RECYCLE_THRESHOLD = 3
+
+# Low memory threshold (bytes) — reboot to reclaim heap
+LOW_MEM_THRESHOLD = 20000
 
 
 def blink(times=1, duration=0.1):
@@ -71,6 +83,10 @@ def get_device_telemetry():
     except Exception as e:
         print("CPU temp error: " + str(e))
 
+    # NTP sync check (year 2000 = RTC never synced)
+    if time.localtime()[0] < 2024:
+        telemetry['ntp_synced'] = False
+
     # Storage (flash filesystem)
     try:
         st = os.statvfs('/')
@@ -89,16 +105,38 @@ def get_device_telemetry():
     return telemetry
 
 
-def ensure_wifi():
-    """Check WiFi and reconnect if needed. Returns True if connected."""
+def ensure_wifi(force_recycle=False):
+    """Check WiFi and reconnect if needed. Returns True if connected.
+    
+    force_recycle: tear down and rebuild WiFi even if isconnected() is True.
+    Used when consecutive HTTP failures suggest the link is stale (#1).
+    """
     import network
     wlan = network.WLAN(network.STA_IF)
-    if wlan.isconnected():
+    
+    if not force_recycle and wlan.isconnected():
         return True
+    
+    if force_recycle:
+        log.warn('Forcing WiFi recycle (stale connection suspected)')
+        try:
+            wlan.disconnect()
+            wlan.active(False)
+            time.sleep(1)
+        except:
+            pass
     
     print("WiFi disconnected, reconnecting...")
     wlan.active(True)
     wlan.config(pm=network.WLAN.PM_PERFORMANCE)
+    
+    # Ensure AP is off (can interfere with STA on CYW43)
+    try:
+        ap = network.WLAN(network.AP_IF)
+        if ap.active():
+            ap.active(False)
+    except:
+        pass
     
     try:
         from config import WIFI_SSID, WIFI_PASSWORD
@@ -154,7 +192,22 @@ def main():
     loop_count = 0
     ota_count = 0
     send_buffer = []
+    consecutive_failures = 0
+    last_healthy_tick = time.ticks_ms()
     while True:
+        # Software watchdog: reboot if no successful loop in 5 minutes
+        if time.ticks_diff(time.ticks_ms(), last_healthy_tick) > WATCHDOG_TIMEOUT_MS:
+            log.error('Software watchdog — no progress in 5 min, rebooting')
+            import machine
+            machine.reset()
+
+        # Low memory guard
+        gc.collect()
+        if gc.mem_free() < LOW_MEM_THRESHOLD:
+            log.error(f'Low memory ({gc.mem_free()} bytes) — rebooting')
+            import machine
+            machine.reset()
+
         try:
             data = read_sensor()
             telemetry = get_device_telemetry()
@@ -177,7 +230,10 @@ def main():
             data['_timestamp'] = _iso_timestamp()
             data['_expireAt'] = _iso_timestamp_offset(30)
             
-            if ensure_wifi():
+            # Force WiFi recycle if Firebase keeps failing (isconnected() may lie)
+            force_recycle = consecutive_failures >= WIFI_RECYCLE_THRESHOLD
+            gc.collect()
+            if ensure_wifi(force_recycle=force_recycle):
                 # Flush buffered readings first
                 if send_buffer:
                     log.info(f'Flushing {len(send_buffer)} buffered reading(s)')
@@ -188,12 +244,17 @@ def main():
                             break
                     send_buffer = still_failed
 
-                if not post_reading(data):
+                if post_reading(data):
+                    consecutive_failures = 0
+                    last_healthy_tick = time.ticks_ms()
+                else:
                     log.warn('Firebase post failed, buffering')
                     send_buffer.append(data)
+                    consecutive_failures += 1
             else:
                 log.warn('No WiFi — buffering reading')
                 send_buffer.append(data)
+                consecutive_failures += 1
             
             if len(send_buffer) > SEND_BUFFER_MAX:
                 dropped = len(send_buffer) - SEND_BUFFER_MAX

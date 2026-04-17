@@ -59,17 +59,22 @@ def post_reading(data):
         import json
         body = json.dumps(doc)
 
+    r = None
     try:
         r = urequests.post(url, data=body, headers={"Content-Type": "application/json"})
         if r.status_code in (200, 201):
             log.info(f'Firebase OK: {data["voltage"]}V')
-            r.close()
             return True
         else:
             log.warn(f'Firebase HTTP {r.status_code}')
-            r.close()
     except Exception as e:
         log.error(f'Firebase post failed: {e}')
+    finally:
+        if r:
+            try:
+                r.close()
+            except:
+                pass
 
     return False
 

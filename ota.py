@@ -25,15 +25,20 @@ def get_remote_version():
     """Fetch remote version.txt"""
     if not OTA_BASE_URL:
         return None
+    r = None
     try:
         r = urequests.get(OTA_BASE_URL + "version.txt")
         if r.status_code == 200:
             version = r.text.strip()
-            r.close()
             return version
-        r.close()
     except Exception as e:
         print(f"Failed to fetch remote version: {e}")
+    finally:
+        if r:
+            try:
+                r.close()
+            except:
+                pass
     return None
 
 
@@ -45,14 +50,22 @@ def download_file(filename):
     url = OTA_BASE_URL + filename
     print(f"Downloading {filename}...")
     
+    r = None
     try:
         r = urequests.get(url)
         if r.status_code == 200:
+            content = r.text
+            # Validate: non-empty and not an error page
+            if not content or len(content) < 10:
+                print(f"  Download too small ({len(content or '')}B), skipping")
+                return False
+            if content.strip().startswith('<!') or content.strip().startswith('<html'):
+                print(f"  Download looks like HTML error page, skipping")
+                return False
             # Write to temp file first
             temp = filename + '.tmp'
             with open(temp, 'w') as f:
-                f.write(r.text)
-            r.close()
+                f.write(content)
             
             # Replace original
             try:
@@ -62,9 +75,19 @@ def download_file(filename):
             os.rename(temp, filename)
             print(f"  Updated {filename}")
             return True
-        r.close()
     except Exception as e:
         print(f"  Failed: {e}")
+        # Clean up temp file on failure
+        try:
+            os.remove(filename + '.tmp')
+        except:
+            pass
+    finally:
+        if r:
+            try:
+                r.close()
+            except:
+                pass
     return False
 
 
