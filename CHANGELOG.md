@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.9.0] - 2026-04-17
+
+- Field provisioning: jumper GP14 to GND at boot to force WiFi AP setup mode
+- No USB needed — touch two pins, reboot, connect to AP, enter new WiFi creds
+
 ## [1.8.2] - 2026-04-17
 
 - Fix: clear last_error after successful WiFi connect (prevents stale boot warnings)

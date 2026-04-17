@@ -13,11 +13,23 @@ wlan = None
 # Alternatively, press Ctrl+C during the 3-second boot delay.
 DEBUG_PIN = Pin(15, Pin.IN, Pin.PULL_UP)
 
+# --- Field provisioning trigger ---
+# Hold GP14 low at boot (jumper GP14 to GND) to force WiFi provisioning AP.
+# Use this in the field to change WiFi SSID/password without USB.
+PROVISION_PIN = Pin(14, Pin.IN, Pin.PULL_UP)
+
 def check_debug_mode():
     """Check if debug jumper is set (GP15 pulled to GND)."""
     if DEBUG_PIN.value() == 0:
         print("\n*** DEBUG MODE — GP15 held low ***")
         print("Dropping to REPL. Remove jumper and reset to boot normally.\n")
+        return True
+    return False
+
+def check_provision_mode():
+    """Check if provisioning jumper is set (GP14 pulled to GND)."""
+    if PROVISION_PIN.value() == 0:
+        log.info('Provision jumper detected (GP14 low) — starting AP')
         return True
     return False
 
@@ -98,7 +110,11 @@ def connect_wifi_with_retries(max_retries=3, delay=10):
 
 
 # Boot flow
-if has_config():
+if check_provision_mode():
+    log.info('Forced provisioning mode via GP14 jumper')
+    from provision import run_server
+    run_server()
+elif has_config():
     if not connect_wifi_with_retries():
         log.warn('All WiFi attempts failed, starting provisioning')
         from provision import run_server
