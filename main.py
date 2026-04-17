@@ -3,9 +3,6 @@ import time
 import gc
 import os
 from machine import Pin, ADC
-import socket as _socket
-
-_socket.setdefaulttimeout(10)
 
 import log
 from sensor import read_sensor, scan_i2c
