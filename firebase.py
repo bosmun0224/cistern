@@ -47,6 +47,9 @@ def post_reading(data):
     if 'version' in data:
         fields['version'] = {"stringValue": data['version']}
 
+    if 'last_error' in data:
+        fields['last_error'] = {"stringValue": data['last_error']}
+
     doc = {"fields": fields}
 
     try:

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.0] - 2026-04-17
+
+- Remote error visibility: last WARN/ERR included in every Firebase reading as `last_error`
+- Dashboard shows last error in bottom-left corner (red text)
+- No extra network calls — piggybacks on existing telemetry posts
+
 ## [1.7.0] - 2026-04-17
 
 - Persistent file logging (log.py): writes to device.log on flash with auto-truncation at 16KB

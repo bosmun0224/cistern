@@ -82,6 +82,10 @@ def get_device_telemetry():
     except Exception:
         pass
 
+    # Last error (from log module)
+    if log.last_error:
+        telemetry['last_error'] = log.last_error
+
     return telemetry
 
 

@@ -5,6 +5,9 @@ import time
 LOG_FILE = 'device.log'
 MAX_SIZE = 16384  # 16KB max, then truncate oldest half
 
+# Most recent WARN/ERR kept in memory for telemetry
+last_error = None
+
 
 def _timestamp():
     t = time.localtime()
@@ -46,10 +49,14 @@ def info(msg):
 
 
 def warn(msg):
+    global last_error
+    last_error = f"WARN: {msg}"
     log(msg, 'WARN')
 
 
 def error(msg):
+    global last_error
+    last_error = f"ERR: {msg}"
     log(msg, 'ERR')
 
 
