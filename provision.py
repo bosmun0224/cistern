@@ -98,6 +98,8 @@ SUCCESS_PAGE = (
     "<h1>Connected!</h1>"
     "<p>Successfully connected to <strong>__SSID__</strong></p>"
     "<p>Credentials saved. Rebooting now...</p>"
+    '<p style="margin-top:16px"><a href="https://cistern.vercel.app" target="_blank" '
+    'style="color:#38bdf8;text-decoration:underline">View your device at cistern.vercel.app &rarr;</a></p>'
     "</div></div></body></html>"
 )
 
