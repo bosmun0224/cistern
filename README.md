@@ -18,6 +18,13 @@ The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flo
 
 ```
  MT3608 VOUT+ (24V) ──── Sensor RED (+)
+                              │
+                         ┌────┴────┐
+                         │ ≋≋≋≋≋≋≋ │
+                         │ SENSOR  │
+                         │ ≋≋≋≋≋≋≋ │
+                         └────┬────┘
+                              │
                          Sensor BLACK (-) ── 220Ω ──┬── 220Ω ── MT3608 VOUT-
                                                      │
                                                  ADS1115 A0
