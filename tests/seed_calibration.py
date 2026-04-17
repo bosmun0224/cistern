@@ -25,9 +25,9 @@ FIRESTORE_BASE = (
 # ---- Calibration values ----
 # Adjust these to match your sensor + tank setup.
 CALIBRATION = {
-    # Sensor voltage range (220Ω shunt + 2:1 voltage divider, compensated)
-    "v_min":          1.76,    # Voltage at ~8mA (sensor in air, 0 depth)
-    "v_max":          4.40,    # Voltage at 20mA (sensor at max depth)
+    # Sensor voltage range (actual ADC voltage at midpoint = I × 220Ω)
+    "v_min":          0.88,    # ADC voltage at 4mA (sensor in air, 0 depth)
+    "v_max":          4.40,    # ADC voltage at 20mA (sensor at max depth)
     "depth_max_m":    5.0,     # Sensor maximum depth rating in meters
 
     # Tank geometry (Norwesco 1500 gal horizontal cylinder)

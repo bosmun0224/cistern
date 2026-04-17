@@ -1,8 +1,7 @@
 # sensor.py - Water depth sensor via 220Ω shunt + ADS1115
-# 4-20mA sensor -> 220Ω shunt -> 220Ω/220Ω voltage divider -> ADS1115 A0 (I2C)
-# Shunt voltage: 0.88V (4mA) to 4.40V (20mA)
-# After divider:  0.44V (4mA) to 2.20V (20mA) — safe for 3.3V ADS1115
-# Software multiplies ADC reading by 2 to recover actual shunt voltage
+# 4-20mA sensor -> two 220Ω resistors in series -> ADS1115 reads midpoint
+# ADC sees: I × 220Ω (bottom resistor) = 0.88V (4mA) to 4.40V (20mA)
+# Tank height limits practical max to ~1.91V (~8.7mA)
 
 from machine import I2C, Pin
 import time
@@ -27,7 +26,12 @@ def read_adc(channel=0):
     """Read raw value from ADS1115 channel (0-3)"""
     config = [0xC0 | (channel << 4) | 0x03, 0x83]
     i2c.writeto_mem(ADS1115_ADDR, REG_CONFIG, bytes(config))
-    time.sleep(0.01)
+    # Poll conversion-ready bit instead of fixed sleep
+    for _ in range(20):
+        time.sleep_ms(1)
+        cfg = i2c.readfrom_mem(ADS1115_ADDR, REG_CONFIG, 2)
+        if (cfg[0] << 8 | cfg[1]) & 0x8000:
+            break
     
     data = i2c.readfrom_mem(ADS1115_ADDR, REG_CONVERSION, 2)
     value = (data[0] << 8) | data[1]
@@ -36,15 +40,10 @@ def read_adc(channel=0):
     return value
 
 
-# Voltage divider ratio: 220Ω / (220Ω + 220Ω) = 0.5, so multiply by 2
-DIVIDER_RATIO = 2.0
-
-
 def read_voltage(channel=0):
-    """Read voltage from ADS1115 channel, compensated for voltage divider"""
+    """Read voltage from ADS1115 channel"""
     raw = read_adc(channel)
-    adc_voltage = raw * 4.096 / 32767
-    voltage = adc_voltage * DIVIDER_RATIO
+    voltage = raw * 4.096 / 32767
     return raw, voltage
 
 

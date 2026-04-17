@@ -68,8 +68,8 @@ def save_config(ssid, password):
     except:
         pass
 
-    existing['WIFI_SSID'] = '"{}"'.format(ssid)
-    existing['WIFI_PASSWORD'] = '"{}"'.format(password)
+    existing['WIFI_SSID'] = '"{}"'.format(ssid.replace('"', '\\"'))
+    existing['WIFI_PASSWORD'] = '"{}"'.format(password.replace('"', '\\"'))
 
     if 'OTA_BASE_URL' not in existing:
         existing['OTA_BASE_URL'] = '"https://raw.githubusercontent.com/bosmun0224/cistern/main/"'
@@ -87,17 +87,25 @@ def save_config(ssid, password):
     print("Config saved: SSID=" + ssid)
 
 
+def _url_decode(s):
+    """Decode a URL-encoded string (handles + and all %XX sequences)."""
+    s = s.replace('+', ' ')
+    parts = s.split('%')
+    decoded = parts[0]
+    for part in parts[1:]:
+        try:
+            decoded += chr(int(part[:2], 16)) + part[2:]
+        except (ValueError, IndexError):
+            decoded += '%' + part
+    return decoded
+
+
 def parse_form(body):
     params = {}
     for pair in body.split('&'):
         if '=' in pair:
             key, val = pair.split('=', 1)
-            val = val.replace('+', ' ')
-            val = val.replace('%21', '!').replace('%40', '@')
-            val = val.replace('%23', '#').replace('%24', '$')
-            val = val.replace('%25', '%').replace('%26', '&')
-            val = val.replace('%3D', '=').replace('%3F', '?')
-            params[key] = val
+            params[key] = _url_decode(val)
     return params
 
 

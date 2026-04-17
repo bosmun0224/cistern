@@ -14,6 +14,9 @@ led = Pin('LED', Pin.OUT)
 # Reading interval in seconds
 READ_INTERVAL = 60
 
+# Re-sync NTP every 6 hours (in loop iterations)
+NTP_SYNC_INTERVAL = (6 * 3600) // READ_INTERVAL
+
 
 def blink(times=1, duration=0.1):
     """Blink onboard LED"""
@@ -81,6 +84,7 @@ def main():
     
     # Main loop
     print("\n--- Starting sensor loop ---")
+    loop_count = 0
     while True:
         try:
             data = read_sensor()
@@ -89,7 +93,7 @@ def main():
 
             # Sanity check: skip posting if voltage is out of plausible range
             v = data['voltage']
-            if v < 0.5 or v > 5.0:
+            if v < 0.3 or v > 3.3:
                 print(f"Voltage out of range ({v}V) — sensor disconnected?")
                 blink(4, 0.15)
                 time.sleep(READ_INTERVAL)
@@ -106,6 +110,15 @@ def main():
         except Exception as e:
             print(f"Error reading sensor: {e}")
             blink(3, 0.2)  # Error blink
+        
+        loop_count += 1
+        if loop_count >= NTP_SYNC_INTERVAL:
+            loop_count = 0
+            try:
+                import ntptime
+                ntptime.settime()
+            except Exception:
+                pass
         
         time.sleep(READ_INTERVAL)
 

@@ -14,7 +14,7 @@ Remote cistern water level monitoring using a Raspberry Pi Pico W with OTA updat
 
 ## Wiring
 
-The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flows through two 220Ω resistors in series (440Ω total). The ADS1115 reads the midpoint between the two resistors, which sees half the voltage dropped across the resistor pair — safe for the 3.3V ADC.
+The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flows through two 220Ω resistors in series (440Ω total). The ADS1115 reads the midpoint between the two resistors — the voltage across the bottom 220Ω resistor (I × 220Ω).
 
 ```
  MT3608 VOUT+ (24V) ──── Sensor RED (+)
@@ -26,9 +26,12 @@ The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flo
                          └────┬────┘
                               │
                          Sensor BLACK (-) ── 220Ω ──┬── 220Ω ── MT3608 VOUT-
-                                                     │
+                                                    │
                                                  ADS1115 A0
-                                                (0.88-2.20V)
+                                              (0.88V @ 4mA)
+
+    ⚠ At 20mA, the midpoint reaches 4.40V — exceeds ADS1115 VDD+0.3V (3.6V).
+      Safe with this tank: max depth 1.46m out of 5m range, so max ~8.7mA / 1.91V.
 ```
 
 **Pin connections:**
@@ -50,13 +53,15 @@ The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flo
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| v_min | 1.76V | Sensor in air (~8mA), after ×2 divider compensation |
-| v_max | 4.40V | Sensor at max depth (20mA), after ×2 divider compensation |
+| v_min | 0.88V | ADC voltage at 4mA (sensor in air) |
+| v_max | 4.40V | ADC voltage at 20mA (sensor max depth) |
 | depth_max_m | 5.0 | Sensor maximum depth rating |
 | tank_radius_in | 28.8 | Norwesco 1500 gal horizontal cylinder |
 | tank_length_in | 133 | Tank body length |
 
-Software applies `DIVIDER_RATIO = 2.0` to the raw ADC voltage to recover the actual shunt voltage.
+The Pico reports the raw ADC voltage (I × 220Ω). The dashboard maps this linearly between `v_min` and `v_max` to compute depth.
+
+> **Note:** At 20mA the midpoint reaches 4.40V which exceeds the ADS1115's absolute max input (VDD + 0.3V = 3.6V). This is safe with the Norwesco 1500 tank — max depth is 1.46m of the sensor's 5m range, so current never exceeds ~8.7mA (1.91V). For deeper tanks, use a higher shunt resistance split or add a 3.3V zener clamp.
 
 ## Setup
 
@@ -212,8 +217,8 @@ python3 -m tests.seed_calibration
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `v_min` | 0.66 | Voltage at 4mA (sensor reads 0 depth) |
-| `v_max` | 3.3 | Voltage at 20mA (sensor reads max depth) |
+| `v_min` | 0.88 | ADC voltage at 4mA (sensor reads 0 depth) |
+| `v_max` | 4.40 | ADC voltage at 20mA (sensor reads max depth) |
 | `depth_max_m` | 5.0 | Sensor maximum depth rating in meters |
 | `tank_radius_in` | 28.8 | Tank cross-section radius in inches |
 | `tank_length_in` | 133.0 | Tank body length in inches |
