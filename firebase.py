@@ -31,8 +31,8 @@ def post_reading(data):
     fields = {
         "voltage": {"doubleValue": data['voltage']},
         "raw": {"integerValue": str(data['raw'])},
-        "timestamp": {"timestampValue": _iso_timestamp()},
-        "expireAt": {"timestampValue": _iso_timestamp_offset(30)},
+        "timestamp": {"timestampValue": data.get('_timestamp') or _iso_timestamp()},
+        "expireAt": {"timestampValue": data.get('_expireAt') or _iso_timestamp_offset(30)},
     }
 
     # Optional device telemetry

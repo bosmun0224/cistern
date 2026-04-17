@@ -159,6 +159,11 @@ def main():
             
             blink(1)  # Heartbeat
             
+            # Stamp reading time so buffered posts keep correct timestamp
+            from firebase import _iso_timestamp, _iso_timestamp_offset
+            data['_timestamp'] = _iso_timestamp()
+            data['_expireAt'] = _iso_timestamp_offset(30)
+            
             if ensure_wifi():
                 # Flush buffered readings first
                 if send_buffer:

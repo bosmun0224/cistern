@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.1] - 2026-04-17
+
+- Fix: buffered readings now keep their original timestamp instead of flush time
+
 ## [1.6.0] - 2026-04-17
 
 - Buffer failed readings in memory and flush when connectivity returns
