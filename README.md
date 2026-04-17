@@ -101,18 +101,43 @@ You should see a device like `/dev/cu.usbmodem*` listed as `MicroPython Board in
 
 > **Important:** Always use `picotool` for flashing — do NOT drag-and-drop `.uf2` files to `/Volumes/RPI-RP2`. macOS may report the copy as successful before the data is fully written, resulting in a corrupted or incomplete flash. The `picotool erase --all` command is also necessary to wipe the MicroPython filesystem area where user scripts (`boot.py`, `main.py`, etc.) are stored — a firmware-only flash leaves old code intact.
 
-### Upload Cistern Code
+### Bootstrap the Device
+
+Flash all project files to the Pico W:
 
 ```bash
-mpremote cp boot.py main.py sensor.py ota.py firebase.py provision.py config.py.example :
+cd cistern
+mpremote connect /dev/cu.usbmodem2101 \
+  cp boot.py :boot.py + \
+  cp main.py :main.py + \
+  cp provision.py :provision.py + \
+  cp ota.py :ota.py + \
+  cp sensor.py :sensor.py + \
+  cp firebase.py :firebase.py + \
+  cp log.py :log.py + \
+  cp version.txt :version.txt + \
+  cp config.py.example :config.py.example + \
+  reset
 ```
+
+The device reboots after flashing. Since there is no `config.py` yet, it enters provisioning mode automatically.
 
 ### Provision WiFi
 
-1. Power on the Pico — it starts a **"Cistern-Setup"** WiFi hotspot
+1. The Pico starts a **"Cistern-Setup"** WiFi hotspot
 2. Connect your phone to it (password: `cistern123`)
-3. Enter the home WiFi credentials in the setup page
-4. Pico saves, reboots, and starts monitoring
+3. A captive portal opens — enter the home WiFi SSID, password, and device name
+4. The Pico saves the config, reboots, connects to WiFi, and starts monitoring
+
+### Full Wipe (Start Over)
+
+To completely erase the device and start fresh:
+
+1. Hold **BOOTSEL** on the Pico W and plug it into USB
+2. Download [flash_nuke.uf2](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2) and copy it to the `RPI-RP2` drive
+3. Wait for the Pico to reboot back into BOOTSEL mode
+4. Download the latest [MicroPython for Pico W](https://micropython.org/download/RPI_PICO_W/) and copy the `.uf2` to the `RPI-RP2` drive
+5. Wait for it to reboot, then follow **Bootstrap the Device** above
 
 ## Firebase
 
@@ -199,6 +224,7 @@ machine.reset()
 | `sensor.py` | ADS1115 driver, returns raw voltage |
 | `ota.py` | Over-the-air update logic |
 | `firebase.py` | Post readings to Firestore |
+| `log.py` | Simple file + console logger |
 | `provision.py` | WiFi AP provisioning (captive portal) |
 | `config.py.example` | Config template (gitignored when copied) |
 | `version.txt` | Current firmware version |
