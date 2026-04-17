@@ -220,6 +220,41 @@
         .last-updated { font-size: 0.75rem; color: #475569; text-align: center; margin-top: 12px; }
         .firmware-version { position: fixed; bottom: 8px; right: 12px; font-size: 0.65rem; color: #475569; }
         .last-error { position: fixed; bottom: 8px; left: 12px; font-size: 0.65rem; color: #ef4444; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Alert banner */
+        .alert-banner {
+            background: #7f1d1d;
+            border: 1px solid #ef4444;
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .alert-banner.visible { display: block; }
+        .alert-banner .alert-title {
+            font-weight: 700;
+            color: #fca5a5;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .alert-banner .alert-msg {
+            color: #fecaca;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+        .notif-btn {
+            background: #334155;
+            border: 1px solid #475569;
+            color: #94a3b8;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-top: 8px;
+        }
+        .notif-btn:hover { background: #475569; color: #e2e8f0; }
+        .notif-btn.enabled { background: #166534; border-color: #22c55e; color: #bbf7d0; }
     </style>
 </head>
 <body>
@@ -232,6 +267,13 @@
                 <span class="status-text" id="statusText">Connecting...</span>
             </div>
             <span class="status-text" id="lastSeen"></span>
+        </div>
+
+        <!-- Alert banner -->
+        <div class="alert-banner" id="alertBanner">
+            <div class="alert-title" id="alertTitle">⚠️ Device Offline</div>
+            <div class="alert-msg" id="alertMsg"></div>
+            <button class="notif-btn" id="notifBtn" onclick="requestNotifications()">&#x1F514; Enable Notifications</button>
         </div>
 
         <!-- Horizontal cylinder tank -->
@@ -816,6 +858,85 @@
             drawDeviceChart(filterByHours(allHistory, deviceRangeHours), deviceRangeHours);
         }
 
+        // ---- Alerts ----
+        const OFFLINE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+        const LOW_VOLTAGE = 0.5;
+        let lastNotifiedAlert = null; // track to avoid repeated notifications
+
+        function checkAlerts(reading) {
+            const banner = document.getElementById('alertBanner');
+            const title = document.getElementById('alertTitle');
+            const msg = document.getElementById('alertMsg');
+
+            if (!reading) {
+                showAlert(banner, title, msg, '⚠️ No Data', 'No readings available from the device.');
+                return;
+            }
+
+            const age = Date.now() - reading.timestamp.getTime();
+            const alerts = [];
+
+            if (age > OFFLINE_THRESHOLD_MS) {
+                const mins = Math.floor(age / 60000);
+                const label = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+                alerts.push({ title: '⚠️ Device Offline', msg: `No data received for ${label}. Check power and WiFi.` });
+            }
+
+            if (reading.voltage < LOW_VOLTAGE) {
+                alerts.push({ title: '⚠️ Low Voltage', msg: `Sensor voltage is ${reading.voltage.toFixed(3)}V (threshold: ${LOW_VOLTAGE}V).` });
+            }
+
+            if (alerts.length > 0) {
+                const combined = alerts.map(a => a.msg).join(' ');
+                showAlert(banner, title, msg, alerts[0].title, combined);
+
+                // Send browser notification (once per alert state change)
+                const alertKey = alerts.map(a => a.title).join('|');
+                if (alertKey !== lastNotifiedAlert && Notification.permission === 'granted') {
+                    new Notification('Cistern Monitor', { body: combined, icon: '💧' });
+                    lastNotifiedAlert = alertKey;
+                }
+            } else {
+                banner.classList.remove('visible');
+                lastNotifiedAlert = null;
+            }
+
+            updateNotifButton();
+        }
+
+        function showAlert(banner, titleEl, msgEl, titleText, msgText) {
+            titleEl.textContent = titleText;
+            msgEl.textContent = msgText;
+            banner.classList.add('visible');
+        }
+
+        function requestNotifications() {
+            if (!('Notification' in window)) {
+                alert('Browser notifications are not supported.');
+                return;
+            }
+            Notification.requestPermission().then(updateNotifButton);
+        }
+
+        function updateNotifButton() {
+            const btn = document.getElementById('notifBtn');
+            if (!('Notification' in window)) {
+                btn.textContent = 'Notifications not supported';
+                btn.disabled = true;
+                return;
+            }
+            if (Notification.permission === 'granted') {
+                btn.textContent = '🔔 Notifications On';
+                btn.classList.add('enabled');
+            } else if (Notification.permission === 'denied') {
+                btn.textContent = '🔕 Notifications Blocked';
+                btn.disabled = true;
+            } else {
+                btn.textContent = '🔔 Enable Notifications';
+                btn.classList.remove('enabled');
+            }
+        }
+
         // ---- Init ----
         async function init() {
             await loadCalibration();
@@ -835,6 +956,8 @@
 
             const latest = await fetchLatest();
             updateUI(latest);
+            checkAlerts(latest);
+            updateNotifButton();
 
             await fetchHistory();
             redrawCharts();
@@ -842,6 +965,7 @@
             setInterval(async () => {
                 const r = await fetchLatest();
                 updateUI(r);
+                checkAlerts(r);
                 await fetchHistory();
                 redrawCharts();
             }, 60000);
