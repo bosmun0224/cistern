@@ -403,10 +403,11 @@
         const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
         // ---- Calibration defaults (overridden by Firestore /config/calibration) ----
-        let TANK_RADIUS_IN = 28.8;
+        let TANK_HEIGHT_IN = 65.5;
+        let TANK_STRAIGHT_IN = 38.0;
+        let TANK_DOME_R_IN = 27.5;
         let TANK_LENGTH_IN = 133.0;
         let TANK_MAX_GAL   = 1500;
-        let TANK_DIAMETER_IN = TANK_RADIUS_IN * 2;
         let V_MIN = 0.884;
         let V_MAX = 4.40;
         let DEPTH_MAX_M = 5.0;
@@ -422,10 +423,11 @@
                 if (f.v_min) V_MIN = parseFloat(f.v_min.doubleValue);
                 if (f.v_max) V_MAX = parseFloat(f.v_max.doubleValue);
                 if (f.depth_max_m) DEPTH_MAX_M = parseFloat(f.depth_max_m.doubleValue);
-                if (f.tank_radius_in) TANK_RADIUS_IN = parseFloat(f.tank_radius_in.doubleValue);
+                if (f.tank_height_in) TANK_HEIGHT_IN = parseFloat(f.tank_height_in.doubleValue);
+                if (f.tank_straight_in) TANK_STRAIGHT_IN = parseFloat(f.tank_straight_in.doubleValue);
+                if (f.tank_dome_r_in) TANK_DOME_R_IN = parseFloat(f.tank_dome_r_in.doubleValue);
                 if (f.tank_length_in) TANK_LENGTH_IN = parseFloat(f.tank_length_in.doubleValue);
                 if (f.tank_max_gal) TANK_MAX_GAL = parseInt(f.tank_max_gal.integerValue);
-                TANK_DIAMETER_IN = TANK_RADIUS_IN * 2;
                 console.log('Calibration loaded from Firestore');
             } catch (e) {
                 console.warn('Using default calibration:', e);
@@ -441,12 +443,25 @@
         }
 
         function depthToGallons(depth_in) {
-            const R = TANK_RADIUS_IN;
-            const h = Math.max(0, Math.min(TANK_DIAMETER_IN, depth_in));
+            const h = Math.max(0, Math.min(TANK_HEIGHT_IN, depth_in));
             if (h <= 0) return 0;
-            if (h >= TANK_DIAMETER_IN) return TANK_MAX_GAL;
-            const area = R * R * Math.acos((R - h) / R) - (R - h) * Math.sqrt(2 * R * h - h * h);
-            return (area * TANK_LENGTH_IN) / 231.0;
+            if (h >= TANK_HEIGHT_IN) return TANK_MAX_GAL;
+            // Dome is semicircle R=TANK_DOME_R_IN; width tapers as sqrt(R²-y²)
+            // Total effective height = straight + dome_effective
+            // dome cumulative area integral: (y/2)*sqrt(1-(y/R)²) + (R/2)*arcsin(y/R)
+            // dome total area integral at y=R: pi*R/4
+            const R = TANK_DOME_R_IN;
+            const domeTotal = Math.PI * R / 4;  // effective dome height in "full-width inches"
+            const effectiveH = TANK_STRAIGHT_IN + domeTotal;
+            const galPerIn = TANK_MAX_GAL / effectiveH;
+            if (h <= TANK_STRAIGHT_IN) {
+                return h * galPerIn;
+            }
+            // In dome region
+            const straightGal = TANK_STRAIGHT_IN * galPerIn;
+            const y = h - TANK_STRAIGHT_IN;  // 0..R
+            const domeCum = (y / 2) * Math.sqrt(1 - (y / R) * (y / R)) + (R / 2) * Math.asin(y / R);
+            return straightGal + domeCum * galPerIn;
         }
 
         function depthToPercent(depth_in) {
@@ -455,7 +470,7 @@
 
         function enrichReading(raw) {
             const { depth_m, depth_in } = voltageToDepth(raw.voltage);
-            const clamped_in = Math.min(depth_in, TANK_DIAMETER_IN);
+            const clamped_in = Math.min(depth_in, TANK_HEIGHT_IN);
             const gallons = depthToGallons(clamped_in);
             const depth_pct = depthToPercent(clamped_in);
             return { ...raw, depth_m, depth_in: clamped_in, gallons, depth_pct };
@@ -517,7 +532,7 @@
         function updateTankFill(pct) {
             // pct is volume-based; map back to physical depth for visual fill
             const targetGal = (pct / 100) * TANK_MAX_GAL;
-            let lo = 0, hi = TANK_DIAMETER_IN;
+            let lo = 0, hi = TANK_HEIGHT_IN;
             for (let i = 0; i < 30; i++) {
                 const mid = (lo + hi) / 2;
                 if (depthToGallons(mid) < targetGal) lo = mid;
@@ -525,7 +540,7 @@
             }
             const depth_in = (lo + hi) / 2;
             const svgH = 160;
-            const fillH = (depth_in / TANK_DIAMETER_IN) * svgH;
+            const fillH = (depth_in / TANK_HEIGHT_IN) * svgH;
             const fillY = 170 - fillH;
 
             document.getElementById('waterFill').setAttribute('y', fillY);

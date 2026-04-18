@@ -26,14 +26,16 @@ FIRESTORE_BASE = (
 # Adjust these to match your sensor + tank setup.
 CALIBRATION = {
     # Sensor voltage range (actual ADC voltage at midpoint = I × 220Ω)
-    "v_min":          0.884,   # ADC voltage at 4mA (sensor in air, 0 depth)
-    "v_max":          4.40,    # ADC voltage at 20mA (sensor at max depth)
+    "v_min":          0.882,   # ADC voltage at 4mA (sensor in air, 0 depth)
+    "v_max":          4.265,   # ADC voltage at 20mA (sensor at max depth)
     "depth_max_m":    5.0,     # Sensor maximum depth rating in meters
 
-    # Tank geometry (Norwesco 1500 gal horizontal cylinder)
-    "tank_radius_in": 28.8,    # Tank cross-section radius in inches
-    "tank_length_in": 133.0,   # Tank body length in inches
-    "tank_max_gal":   1500,    # Rated capacity in gallons
+    # Tank geometry (Norwesco 1500 gal Bruiser — rectangle with domed top)
+    "tank_height_in":   65.5,    # Total internal height in inches
+    "tank_straight_in": 38.0,    # Straight wall height (dome starts above this)
+    "tank_dome_r_in":   27.5,    # Dome semicircle radius in inches
+    "tank_length_in":   133.0,   # Tank body length in inches
+    "tank_max_gal":     1500,    # Rated capacity in gallons
 }
 
 
