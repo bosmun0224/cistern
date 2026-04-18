@@ -470,10 +470,9 @@
 
         function enrichReading(raw) {
             const { depth_m, depth_in } = voltageToDepth(raw.voltage);
-            const clamped_in = Math.min(depth_in, TANK_HEIGHT_IN);
-            const gallons = depthToGallons(clamped_in);
-            const depth_pct = depthToPercent(clamped_in);
-            return { ...raw, depth_m, depth_in: clamped_in, gallons, depth_pct };
+            const gallons = depthToGallons(depth_in);
+            const depth_pct = depthToPercent(depth_in);
+            return { ...raw, depth_m, depth_in, gallons, depth_pct };
         }
 
         // ---- Firestore API ----
