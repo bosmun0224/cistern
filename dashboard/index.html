@@ -495,13 +495,31 @@
         }
 
         async function fetchHistory() {
-            // Fetch up to 4032 readings (14 days × 12/hr × 24h)
+            // Firestore REST API caps at 300 docs/page. Paginate up to 14 days then stop.
+            const cutoff = new Date(Date.now() - 14 * 24 * 3600 * 1000);
             try {
-                const url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp desc&pageSize=4032`;
-                const res = await fetch(url);
-                const data = await res.json();
-                if (data.documents) {
-                    allHistory = data.documents.map(d => enrichReading(parseDoc(d))).reverse();
+                let allDocs = [];
+                let pageToken = null;
+                for (let page = 0; page < 100; page++) {
+                    let url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=timestamp desc&pageSize=300`;
+                    if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    if (data.documents) {
+                        allDocs.push(...data.documents);
+                        // Stop if oldest doc on this page is beyond 14-day window
+                        const lastDoc = data.documents[data.documents.length - 1];
+                        const lastTs = new Date(lastDoc.fields.timestamp?.timestampValue || 0);
+                        if (lastTs < cutoff) break;
+                    }
+                    if (!data.nextPageToken) break;
+                    pageToken = data.nextPageToken;
+                }
+                if (allDocs.length) {
+                    allHistory = allDocs
+                        .map(d => enrichReading(parseDoc(d)))
+                        .filter(r => r.timestamp >= cutoff)
+                        .reverse();
                     return allHistory;
                 }
             } catch (e) { console.error('History fetch error:', e); }
