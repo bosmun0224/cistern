@@ -8,9 +8,12 @@ Remote cistern water level monitoring using a Raspberry Pi Pico W with OTA updat
 |-----------|---------|
 | Pico W | Microcontroller with WiFi |
 | 4-20mA depth sensor | Submersible pressure transducer (5m range) |
+| RS-15-5 | 120VAC → 5VDC power supply (Mean Well, UL listed) |
 | MT3608 | DC-DC boost converter (5V → 24V) |
 | 220Ω resistor (×2) | Shunt + voltage divider (in series) |
 | ADS1115 | 16-bit ADC (I2C) |
+
+> **Power:** The RS-15-5 taps off 120VAC at the well pump junction box via wire nuts. It provides 5V/3A — the Pico W draws ~150mA. The 5V feeds both the Pico (via VBUS) and the MT3608 boost converter.
 
 ## Wiring
 
@@ -53,11 +56,14 @@ The 4-20mA sensor is powered by 24V from the MT3608 boost converter. Current flo
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| v_min | 0.884V | ADC voltage at 4mA (sensor in air) |
-| v_max | 4.40V | ADC voltage at 20mA (sensor max depth) |
+| v_min | 0.882V | ADC voltage at 4mA (sensor in air, field-measured) |
+| v_max | 4.265V | ADC voltage at 20mA (computed from two-point calibration) |
 | depth_max_m | 5.0 | Sensor maximum depth rating |
-| tank_radius_in | 28.8 | Norwesco 1500 gal horizontal cylinder |
+| tank_height_in | 65.5 | Norwesco 1500 Bruiser total height |
+| tank_straight_in | 38.0 | Straight wall section height |
+| tank_dome_r_in | 27.5 | Semicircular dome radius |
 | tank_length_in | 133 | Tank body length |
+| tank_max_gal | 1500 | Rated capacity |
 
 The Pico reports the raw ADC voltage (I × 220Ω). The dashboard maps this linearly between `v_min` and `v_max` to compute depth.
 
@@ -243,16 +249,18 @@ python3 -m tests.seed_calibration
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `v_min` | 0.884 | ADC voltage at 4mA (sensor reads 0 depth) |
-| `v_max` | 4.40 | ADC voltage at 20mA (sensor reads max depth) |
+| `v_min` | 0.882 | ADC voltage at 4mA (sensor reads 0 depth) |
+| `v_max` | 4.265 | ADC voltage at 20mA (sensor reads max depth) |
 | `depth_max_m` | 5.0 | Sensor maximum depth rating in meters |
-| `tank_radius_in` | 28.8 | Tank cross-section radius in inches |
+| `tank_height_in` | 65.5 | Norwesco 1500 Bruiser total height |
+| `tank_straight_in` | 38.0 | Straight wall section height |
+| `tank_dome_r_in` | 27.5 | Semicircular dome radius |
 | `tank_length_in` | 133.0 | Tank body length in inches |
 | `tank_max_gal` | 1500 | Rated capacity in gallons |
 
 If the config document doesn't exist, the dashboard falls back to the defaults above.
 
-The Pico sends only raw voltage — all depth/volume computation happens client-side on the dashboard using the horizontal cylinder formula.
+The Pico sends only raw voltage — all depth/volume computation happens client-side on the dashboard using a rectangular + dome volume formula.
 
 ## License
 
