@@ -663,6 +663,33 @@
             return `${Math.floor(seconds / 86400)}d ago`;
         }
 
+        // ---- Smoothing: moving average ----
+        function smoothData(points, windowSize) {
+            if (points.length < windowSize) return points;
+            const result = [];
+            const half = Math.floor(windowSize / 2);
+            for (let i = 0; i < points.length; i++) {
+                const start = Math.max(0, i - half);
+                const end = Math.min(points.length - 1, i + half);
+                let sum = 0, count = 0;
+                for (let j = start; j <= end; j++) {
+                    sum += points[j].y;
+                    count++;
+                }
+                result.push({ x: points[i].x, y: Math.round(sum / count) });
+            }
+            return result;
+        }
+
+        // Window size scales with range: more data = more smoothing
+        function getSmoothWindow(rangeHours, dataLen) {
+            if (dataLen < 5) return 1;
+            if (rangeHours <= 1) return 3;
+            if (rangeHours <= 6) return 5;
+            if (rangeHours <= 24) return 7;
+            return 11;
+        }
+
         // ---- Chart: Water Level (Chart.js) ----
         let waterChart = null;
 
@@ -672,7 +699,9 @@
             const tMin = tMax - rangeHours * 3600000;
 
             const filtered = readings.filter(r => r.timestamp.getTime() >= tMin && r.timestamp.getTime() <= tMax);
-            const data = filtered.map(r => ({ x: r.timestamp, y: Math.round(r.gallons) }));
+            const raw = filtered.map(r => ({ x: r.timestamp, y: Math.round(r.gallons) }));
+            const window = getSmoothWindow(rangeHours, raw.length);
+            const data = smoothData(raw, window);
 
             // Auto-scale: pad 5% above and below, minimum 20 gal range
             let yMin = 0, yMax = TANK_MAX_GAL;
