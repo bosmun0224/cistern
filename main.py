@@ -260,6 +260,7 @@ def main():
                 if post_reading(data):
                     consecutive_failures = 0
                     last_healthy_tick = time.ticks_ms()
+                    log.last_error = None
                 else:
                     log.warn('Firebase post failed, buffering')
                     send_buffer.append(data)
