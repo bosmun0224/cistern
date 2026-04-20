@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.13.1] - 2026-04-20
+
+- Fix: clear last_error after successful Firebase post (prevents stale error in dashboard telemetry)
+
 ## [1.11.0] - 2026-04-17
 
 - Provisioning now tests WiFi credentials before saving (STA+AP concurrent on CYW43)
