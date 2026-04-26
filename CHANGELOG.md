@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.14.1] - 2026-04-25
+
+- Fix: OTA boot loop caused by `version.txt` failing the 10-byte minimum file size safety check (explicitly bypass the check for `version.txt`).
+
+## [1.14.0] - 2026-04-25
+
+- Fix: Critical memory fragmentation boot loop. Removed `from provision import has_config` in `boot.py` which was loading massive HTML strings into RAM and preventing `mbedtls` SSL handshakes from allocating memory.
+- Feat: Hardware undercurrent fault detection. If sensor reads < 0.85V (< 4mA), it flashes the LED and posts "Undercurrent Fault" to telemetry, indicating power supply or sensor failure.
+- Feat: Deep device telemetry tracking. Captures `alloc_mem` (heap usage), `uptime_s`, `reset_cause`, `wifi_reconnects`, and `loop_time_ms`.
+- Feat: Fixed Pico W internal CPU temperature readings via 10-sample rolling average to filter CYW43 noise.
+- Feat: Remote `crash.log` reporting. Any unhandled exception traceback in the main loop is saved to flash, then automatically uploaded to a `crash_reports` Firestore collection on the next boot.
+- UI: Dashboard expanded with interactive telemetry boxes for Uptime, Reset Code, Reconnects, and Loop Time, complete with historical charting.
+- Infra: Updated Terraform security rules to support the new telemetry keys and crash reporting collection.
+
 ## [1.13.2] - 2026-04-20
 
 - Fix: add I2C general-call reset (0x06) before each ADS1115 read to prevent chip lockup/drift (per TI E2E recommendation)
