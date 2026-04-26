@@ -2,7 +2,6 @@
 import network
 import time
 from machine import Pin
-from provision import has_config
 import log
 
 wlan = None
@@ -32,6 +31,14 @@ def check_provision_mode():
         log.info('Provision jumper detected (GP14 low) — starting AP')
         return True
     return False
+
+def has_config():
+    """Check if config is present without importing huge provision.py"""
+    try:
+        from config import WIFI_SSID
+        return bool(WIFI_SSID and WIFI_SSID != "your_wifi_name")
+    except ImportError:
+        return False
 
 print("\n=== Cistern Boot ===")
 print("Press Ctrl+C within 3s for REPL, or jumper GP15->GND for debug mode...")

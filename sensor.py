@@ -26,6 +26,8 @@ def _recover_i2c():
     """Toggle SCL 9 times to release a hung I2C slave, then re-init bus."""
     global i2c
     print("I2C bus recovery: toggling SCL...")
+    import log
+    log.warn("I2C bus recovery initiated. Possible hardware fault on I2C lines.")
     scl = Pin(5, Pin.OUT, value=1)
     sda = Pin(4, Pin.IN, Pin.PULL_UP)
     for _ in range(9):
@@ -37,24 +39,46 @@ def _recover_i2c():
     print("I2C bus re-initialized")
 
 
+def _reset_ads1115():
+    """Send I2C general-call reset (0x06) to reset ADS1115 internal state.
+    Recommended by TI to prevent the chip from locking up or drifting
+    after prolonged single-shot operation."""
+    try:
+        i2c.writeto(0x00, bytes([0x06]))
+        time.sleep_ms(1)
+    except OSError:
+        pass
+
+
+def _do_single_conversion(channel):
+    """Trigger a single-shot conversion and return the raw ADC value."""
+    config = [0xC0 | (channel << 4) | 0x03, 0x83]
+    i2c.writeto_mem(ADS1115_ADDR, REG_CONFIG, bytes(config))
+    # Poll conversion-ready bit instead of fixed sleep
+    for _ in range(20):
+        time.sleep_ms(1)
+        cfg = i2c.readfrom_mem(ADS1115_ADDR, REG_CONFIG, 2)
+        if (cfg[0] << 8 | cfg[1]) & 0x8000:
+            break
+    data = i2c.readfrom_mem(ADS1115_ADDR, REG_CONVERSION, 2)
+    value = (data[0] << 8) | data[1]
+    if value > 32767:
+        value -= 65536
+    return value
+
+
 def read_adc(channel=0):
-    """Read raw value from ADS1115 channel (0-3). Retries once with bus recovery."""
+    """Read raw value from ADS1115 channel (0-3). Retries once with bus recovery.
+    
+    Resets the ADS1115 via I2C general-call, then performs a dummy read to flush
+    stale charge from the internal sample-and-hold capacitor before taking the
+    real measurement.
+    """
     for attempt in range(2):
         try:
-            config = [0xC0 | (channel << 4) | 0x03, 0x83]
-            i2c.writeto_mem(ADS1115_ADDR, REG_CONFIG, bytes(config))
-            # Poll conversion-ready bit instead of fixed sleep
-            for _ in range(20):
-                time.sleep_ms(1)
-                cfg = i2c.readfrom_mem(ADS1115_ADDR, REG_CONFIG, 2)
-                if (cfg[0] << 8 | cfg[1]) & 0x8000:
-                    break
-            
-            data = i2c.readfrom_mem(ADS1115_ADDR, REG_CONVERSION, 2)
-            value = (data[0] << 8) | data[1]
-            if value > 32767:
-                value -= 65536
-            return value
+            _reset_ads1115()
+            _do_single_conversion(channel)  # dummy read — flush stale charge
+            return _do_single_conversion(channel)  # real read
         except OSError:
             if attempt == 0:
                 _recover_i2c()

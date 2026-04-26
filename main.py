@@ -226,13 +226,17 @@ def main():
             telemetry = get_device_telemetry()
             data.update(telemetry)
 
-            # Sanity check: skip posting if voltage is out of plausible range
             v = data['voltage']
-            if v < 0.3 or v > 3.3:
+            if v < 0.3 or v > 4.5: # Adjusted max voltage to 4.5V to catch 20mA max
                 log.warn(f'Voltage out of range: {v}V')
                 blink(4, 0.15)
-                time.sleep(READ_INTERVAL)
-                continue
+                # We will still post to Firebase so we can see the death spiral, 
+                # but we'll flag it in telemetry
+                data['last_error'] = f'Voltage out of bounds: {v}V'
+            elif v < 0.85:
+                # 4mA is ~0.88V. Anything below this is an undercurrent fault.
+                log.warn(f'Sensor undercurrent fault! V={v}V (<4mA). Check 24V supply or sensor wire.')
+                data['last_error'] = f'Undercurrent Fault: {v}V'
 
             log.info(f'V={data["voltage"]}V raw={data["raw"]} RSSI={data.get("rssi", "?")} mem={data.get("free_mem", "?")}')
             
@@ -246,6 +250,11 @@ def main():
             # Force WiFi recycle if Firebase keeps failing (isconnected() may lie)
             force_recycle = consecutive_failures >= WIFI_RECYCLE_THRESHOLD
             gc.collect()
+            import micropython
+            log.info('--- Memory Info Before Network ---')
+            micropython.mem_info()
+            log.info('----------------------------------')
+            
             if ensure_wifi(force_recycle=force_recycle):
                 # Flush buffered readings first
                 if send_buffer:
