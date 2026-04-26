@@ -56,7 +56,7 @@ def download_file(filename):
         if r.status_code == 200:
             content = r.text
             # Validate: non-empty and not an error page
-            if not content or len(content) < 10:
+            if not content or (len(content) < 10 and filename != 'version.txt'):
                 print(f"  Download too small ({len(content or '')}B), skipping")
                 return False
             if content.strip().startswith('<!') or content.strip().startswith('<html'):

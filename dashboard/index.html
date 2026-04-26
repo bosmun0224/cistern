@@ -385,6 +385,26 @@
                     <div class="telem-value" id="memValue">--</div>
                     <div class="telem-label">RAM</div>
                 </div>
+                <div class="telem-item" data-series="uptime" style="--series-color:#3b82f6">
+                    <div class="telem-icon">&#x23F1;&#xFE0F;</div>
+                    <div class="telem-value" id="uptimeValue">--</div>
+                    <div class="telem-label">Uptime</div>
+                </div>
+                <div class="telem-item" data-series="reset_cause" style="--series-color:#64748b">
+                    <div class="telem-icon">&#x21BB;&#xFE0F;</div>
+                    <div class="telem-value" id="resetValue">--</div>
+                    <div class="telem-label">Reset Code</div>
+                </div>
+                <div class="telem-item" data-series="reconnects" style="--series-color:#ef4444">
+                    <div class="telem-icon">&#x1F504;</div>
+                    <div class="telem-value" id="reconnectsValue">--</div>
+                    <div class="telem-label">Reconnects</div>
+                </div>
+                <div class="telem-item" data-series="loop_time" style="--series-color:#eab308">
+                    <div class="telem-icon">&#x26A1;</div>
+                    <div class="telem-value" id="loopValue">--</div>
+                    <div class="telem-label">Loop Time</div>
+                </div>
                 <div class="telem-item" data-series="storage_pct" style="--series-color:#f472b6">
                     <div class="telem-icon">&#x1F4C1;</div>
                     <div class="telem-value" id="storageValue">--</div>
@@ -539,9 +559,14 @@
                 timestamp: new Date(f.timestamp?.timestampValue || 0),
                 rssi: f.rssi ? parseInt(f.rssi.integerValue) : null,
                 free_mem: f.free_mem ? parseInt(f.free_mem.integerValue) : null,
+                alloc_mem: f.alloc_mem ? parseInt(f.alloc_mem.integerValue) : null,
                 cpu_temp: f.cpu_temp ? parseFloat(f.cpu_temp.doubleValue || f.cpu_temp.integerValue) : null,
                 total_storage: f.total_storage ? parseInt(f.total_storage.integerValue) : null,
                 used_storage: f.used_storage ? parseInt(f.used_storage.integerValue) : null,
+                uptime_s: f.uptime_s ? parseInt(f.uptime_s.integerValue) : null,
+                reset_cause: f.reset_cause ? parseInt(f.reset_cause.integerValue) : null,
+                wifi_reconnects: f.wifi_reconnects ? parseInt(f.wifi_reconnects.integerValue) : null,
+                loop_time_ms: f.loop_time_ms ? parseInt(f.loop_time_ms.integerValue) : null,
                 version: f.version ? f.version.stringValue : null,
                 last_error: f.last_error ? f.last_error.stringValue : null,
             };
@@ -661,6 +686,36 @@
                     document.getElementById('memValue').textContent = `${ramUsedPct}%`;
                 } else {
                     document.getElementById('memValue').textContent = '--';
+                }
+
+                // Uptime
+                if (reading.uptime_s !== null) {
+                    const hrs = Math.floor(reading.uptime_s / 3600);
+                    const mins = Math.floor((reading.uptime_s % 3600) / 60);
+                    document.getElementById('uptimeValue').textContent = `${hrs}h${mins}m`;
+                } else {
+                    document.getElementById('uptimeValue').textContent = '--';
+                }
+
+                // Reconnects
+                if (reading.wifi_reconnects !== null) {
+                    document.getElementById('reconnectsValue').textContent = reading.wifi_reconnects;
+                } else {
+                    document.getElementById('reconnectsValue').textContent = '--';
+                }
+
+                // Loop Time
+                if (reading.loop_time_ms !== null) {
+                    document.getElementById('loopValue').textContent = `${reading.loop_time_ms}ms`;
+                } else {
+                    document.getElementById('loopValue').textContent = '--';
+                }
+
+                // Reset Cause
+                if (reading.reset_cause !== null) {
+                    document.getElementById('resetValue').textContent = reading.reset_cause;
+                } else {
+                    document.getElementById('resetValue').textContent = '--';
                 }
 
                 // Storage: used %
@@ -851,6 +906,18 @@
             { key: 'free_mem', label: 'Free RAM',   color: '#a78bfa', unit: 'KB',
               getValue: r => r.free_mem != null ? Math.round(r.free_mem / 1024) : null, yMin: 0, yMax: 200,
               format: v => `${v} KB` },
+            { key: 'uptime', label: 'Uptime', color: '#3b82f6', unit: 'h',
+              getValue: r => r.uptime_s != null ? Math.round(r.uptime_s / 3600 * 10)/10 : null, yMin: 0, yMax: 100,
+              format: v => `${v} h` },
+            { key: 'reconnects', label: 'WiFi Reconn', color: '#ef4444', unit: '',
+              getValue: r => r.wifi_reconnects, yMin: 0, yMax: 10,
+              format: v => `${v}` },
+            { key: 'reset_cause', label: 'Reset Cause', color: '#64748b', unit: '',
+              getValue: r => r.reset_cause, yMin: 0, yMax: 6,
+              format: v => `${v}` },
+            { key: 'loop_time', label: 'Loop Time', color: '#eab308', unit: 'ms',
+              getValue: r => r.loop_time_ms, yMin: 0, yMax: 5000,
+              format: v => `${v} ms` },
             { key: 'cpu_temp', label: 'Temp',       color: '#fb923c', unit: '°C',
               getValue: r => r.cpu_temp != null ? Math.round(r.cpu_temp * 10) / 10 : null, yMin: 0, yMax: 70,
               format: v => `${v}°C` },

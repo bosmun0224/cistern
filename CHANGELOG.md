@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.2] - 2026-04-20
+
+- Fix: add I2C general-call reset (0x06) before each ADS1115 read to prevent chip lockup/drift (per TI E2E recommendation)
+- Fix: add dummy read before each ADS1115 conversion to flush stale charge from internal sample-and-hold capacitor
+- Prevents slow voltage drift caused by residual charge accumulating across single-shot power-down cycles
+
 ## [1.13.1] - 2026-04-20
 
 - Fix: clear last_error after successful Firebase post (prevents stale error in dashboard telemetry)

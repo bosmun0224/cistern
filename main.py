@@ -25,6 +25,10 @@ OTA_CHECK_INTERVAL = (1 * 3600) // READ_INTERVAL
 WIFI_MAX_RETRIES = 5
 WIFI_RETRY_DELAY = 10
 
+# Metrics
+wifi_reconnects = 0
+last_loop_duration_ms = 0
+
 # Max readings to buffer when Firebase is unreachable
 SEND_BUFFER_MAX = 30
 
@@ -50,6 +54,7 @@ def blink(times=1, duration=0.1):
 def get_device_telemetry():
     """Gather device stats to send alongside sensor data."""
     import network
+    import machine
     telemetry = {}
 
     # Firmware version
@@ -67,14 +72,27 @@ def get_device_telemetry():
     except Exception:
         pass
 
-    # Free memory
+    # Memory metrics
     gc.collect()
     telemetry['free_mem'] = gc.mem_free()
+    telemetry['alloc_mem'] = gc.mem_alloc()
+
+    # Uptime
+    telemetry['uptime_s'] = time.ticks_ms() // 1000
+
+    # Reset Cause
+    telemetry['reset_cause'] = machine.reset_cause()
+
+    # System Health
+    global wifi_reconnects, last_loop_duration_ms
+    telemetry['wifi_reconnects'] = wifi_reconnects
+    telemetry['loop_time_ms'] = last_loop_duration_ms
 
     # CPU temperature (Pico W reads via ADC4, same as regular Pico)
     try:
-        temp_adc = ADC(4)
-        raw = temp_adc.read_u16()
+        temp_adc = machine.ADC(4)
+        # Average multiple readings to reduce noise
+        raw = sum(temp_adc.read_u16() for _ in range(10)) / 10
         voltage = raw * 3.3 / 65535
         telemetry['cpu_temp'] = round(27 - (voltage - 0.706) / 0.001721, 1)
     except Exception as e:
@@ -150,6 +168,8 @@ def ensure_wifi(force_recycle=False):
         if wlan.isconnected():
             print(f"  Reconnected: {wlan.ifconfig()[0]}")
             log.last_error = None
+            global wifi_reconnects
+            wifi_reconnects += 1
             blink(2, 0.1)
             return True
         status = wlan.status()
@@ -200,6 +220,11 @@ def main():
     check_for_updates(auto_reboot=True)
     log.info('OTA check complete, no reboot needed')
     
+    # Remote crash log reporting
+    crash_content = log.read_crash_log()
+    if crash_content:
+        log.info('Found previous crash log')
+        
     # Main loop
     log.info('Entering sensor loop (interval={}s)'.format(READ_INTERVAL))
     loop_count = 0
@@ -208,6 +233,8 @@ def main():
     consecutive_failures = 0
     last_healthy_tick = time.ticks_ms()
     while True:
+        loop_start = time.ticks_ms()
+        
         # Software watchdog: reboot if no successful loop in 5 minutes
         if time.ticks_diff(time.ticks_ms(), last_healthy_tick) > WATCHDOG_TIMEOUT_MS:
             log.error('Software watchdog — no progress in 5 min, rebooting')
@@ -256,6 +283,13 @@ def main():
             log.info('----------------------------------')
             
             if ensure_wifi(force_recycle=force_recycle):
+                # Try to upload crash log if pending
+                if crash_content:
+                    from firebase import post_crash_log
+                    if post_crash_log(crash_content):
+                        log.archive_crash_log()
+                        crash_content = None
+
                 # Flush buffered readings first
                 if send_buffer:
                     log.info(f'Flushing {len(send_buffer)} buffered reading(s)')
@@ -306,11 +340,22 @@ def main():
             except Exception as e:
                 log.error(f'OTA check failed: {e}')
         
+        global last_loop_duration_ms
+        last_loop_duration_ms = time.ticks_diff(time.ticks_ms(), loop_start)
+        
         time.sleep(READ_INTERVAL)
 
 
 if __name__ == '__main__':
     try:
+        from machine import Pin
+        import sys
+        # Check debug escape hatch
+        if Pin(15, Pin.IN, Pin.PULL_UP).value() == 0:
+            print("\n*** DEBUG MODE — GP15 held low ***")
+            print("Aborting main.py. You are now in the REPL.\n")
+            sys.exit()
+            
         main()
     except KeyboardInterrupt:
         print("\n\n*** Ctrl+C — stopped. You're in the REPL. ***")
@@ -318,6 +363,10 @@ if __name__ == '__main__':
         print("  from sensor import read_sensor")
         print("  read_sensor()       # take a sensor reading")
         print("  import machine; machine.reset()  # reboot")
+    except SystemExit:
+        pass
     except Exception as e:
         log.error(f'Unhandled crash: {e}')
-        raise
+        log.write_crash(e)
+        import machine
+        machine.reset()

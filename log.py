@@ -3,6 +3,7 @@
 import time
 
 LOG_FILE = 'device.log'
+CRASH_FILE = 'crash.log'
 MAX_SIZE = 16384  # 16KB max, then truncate oldest half
 
 # Most recent WARN/ERR kept in memory for telemetry
@@ -77,5 +78,38 @@ def clear():
         import os
         os.remove(LOG_FILE)
         print('Log cleared.')
+    except OSError:
+        pass
+
+
+def write_crash(e):
+    """Write an unhandled exception traceback to crash.log"""
+    try:
+        import sys
+        with open(CRASH_FILE, 'w') as f:
+            f.write(f"[{_timestamp()}] Unhandled exception:\n")
+            sys.print_exception(e, f)
+    except Exception:
+        pass
+
+
+def read_crash_log():
+    """Return the contents of crash.log, or None if it doesn't exist."""
+    try:
+        with open(CRASH_FILE, 'r') as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def archive_crash_log():
+    """Rename crash.log to crash.log.old to prevent re-uploading."""
+    try:
+        import os
+        try:
+            os.remove(CRASH_FILE + '.old')
+        except OSError:
+            pass
+        os.rename(CRASH_FILE, CRASH_FILE + '.old')
     except OSError:
         pass

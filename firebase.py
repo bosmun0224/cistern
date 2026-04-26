@@ -37,7 +37,9 @@ def post_reading(data):
     }
 
     # Optional device telemetry
-    for key in ('rssi', 'free_mem', 'used_storage', 'total_storage', 'cpu_temp'):
+    for key in ('rssi', 'free_mem', 'alloc_mem', 'uptime_s', 'reset_cause', 
+                'wifi_reconnects', 'loop_time_ms', 'used_storage', 
+                'total_storage', 'cpu_temp'):
         if key in data:
             if isinstance(data[key], float):
                 fields[key] = {"doubleValue": data[key]}
@@ -76,6 +78,47 @@ def post_reading(data):
             except:
                 pass
 
+    return False
+
+
+def post_crash_log(traceback_text):
+    """Post a crash log to Firestore."""
+    if not FIREBASE_PROJECT_ID:
+        return False
+        
+    url = _get_url("crash_reports") + "?key=" + FIREBASE_API_KEY
+    
+    fields = {
+        "timestamp": {"timestampValue": _iso_timestamp()},
+        "traceback": {"stringValue": traceback_text},
+    }
+    
+    doc = {"fields": fields}
+    
+    try:
+        import ujson
+        body = ujson.dumps(doc)
+    except ImportError:
+        import json
+        body = json.dumps(doc)
+
+    r = None
+    try:
+        r = urequests.post(url, data=body, headers={"Content-Type": "application/json"})
+        if r.status_code in (200, 201):
+            log.info('Firebase OK: Crash log uploaded')
+            return True
+        else:
+            log.warn(f'Firebase HTTP {r.status_code} on crash log upload')
+    except Exception as e:
+        log.error(f'Firebase crash log upload failed: {e}')
+    finally:
+        if r:
+            try:
+                r.close()
+            except:
+                pass
+                
     return False
 
 
