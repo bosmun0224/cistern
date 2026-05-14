@@ -98,16 +98,6 @@ def get_device_telemetry():
     except Exception as e:
         print("CPU temp error: " + str(e))
 
-    # Measure VSYS to check for power supply drooping
-    try:
-        # Pico W VSYS is typically accessible via ADC3 (GPIO 29)
-        vsys_adc = machine.ADC(29)
-        vsys_raw = sum(vsys_adc.read_u16() for _ in range(10)) / 10
-        # ADC measures 1/3 of VSYS
-        telemetry['vsys_v'] = round((vsys_raw * 3.3 / 65535) * 3, 2)
-    except Exception as e:
-        pass
-
     # NTP sync check (year 2000 = RTC never synced)
     if time.localtime()[0] < 2024:
         telemetry['ntp_synced'] = False
