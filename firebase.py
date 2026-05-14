@@ -39,7 +39,7 @@ def post_reading(data):
     # Optional device telemetry
     for key in ('rssi', 'free_mem', 'alloc_mem', 'uptime_s', 'reset_cause', 
                 'wifi_reconnects', 'loop_time_ms', 'used_storage', 
-                'total_storage', 'cpu_temp'):
+                'total_storage', 'cpu_temp', 'vsys_v'):
         if key in data:
             if isinstance(data[key], float):
                 fields[key] = {"doubleValue": data[key]}
