@@ -76,7 +76,7 @@ resource "google_firebaserules_ruleset" "firestore" {
               allow read: if true;
               allow create: if request.resource.data.keys().hasAll(['voltage', 'raw', 'timestamp', 'expireAt'])
                            && request.resource.data.keys().hasOnly(['voltage', 'raw', 'timestamp', 'expireAt',
-                                'rssi', 'free_mem', 'alloc_mem', 'uptime_s', 'reset_cause', 'wifi_reconnects', 'loop_time_ms', 'used_storage', 'total_storage', 'cpu_temp', 'version', 'last_error'])
+                                'rssi', 'free_mem', 'alloc_mem', 'uptime_s', 'reset_cause', 'wifi_reconnects', 'loop_time_ms', 'used_storage', 'total_storage', 'cpu_temp', 'version', 'last_error', 'vsys_v'])
                            && request.resource.data.voltage is number
                            && request.resource.data.raw is int
                            && request.resource.data.timestamp is timestamp
