@@ -98,6 +98,16 @@ def get_device_telemetry():
     except Exception as e:
         print("CPU temp error: " + str(e))
 
+    # Measure VSYS to check for power supply drooping
+    try:
+        # Pico W VSYS is typically accessible via ADC3 (GPIO 29)
+        vsys_adc = machine.ADC(29)
+        vsys_raw = sum(vsys_adc.read_u16() for _ in range(10)) / 10
+        # ADC measures 1/3 of VSYS
+        telemetry['vsys_v'] = round((vsys_raw * 3.3 / 65535) * 3, 2)
+    except Exception as e:
+        pass
+
     # NTP sync check (year 2000 = RTC never synced)
     if time.localtime()[0] < 2024:
         telemetry['ntp_synced'] = False
@@ -262,8 +272,9 @@ def main():
                 data['last_error'] = f'Voltage out of bounds: {v}V'
             elif v < 0.85:
                 # 4mA is ~0.88V. Anything below this is an undercurrent fault.
-                log.warn(f'Sensor undercurrent fault! V={v}V (<4mA). Check 24V supply or sensor wire.')
-                data['last_error'] = f'Undercurrent Fault: {v}V'
+                current_ma = (v / 220.0) * 1000.0
+                log.warn(f'Sensor undercurrent fault! V={v}V ({current_ma:.2f}mA < 4mA). Check supply or sensor wire.')
+                data['last_error'] = f'Undercurrent Fault: {v}V ({current_ma:.2f}mA)'
 
             log.info(f'V={data["voltage"]}V raw={data["raw"]} RSSI={data.get("rssi", "?")} mem={data.get("free_mem", "?")}')
             
