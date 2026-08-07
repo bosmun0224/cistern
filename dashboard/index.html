@@ -518,8 +518,16 @@
                     if (!res.ok) {
                         const body = await res.text().catch(() => '');
                         const err = new Error(`${label}: HTTP ${res.status} ${res.statusText}${body ? ' - ' + body.slice(0, 160) : ''}`);
-                        // 4xx (other than throttling/timeout) will not fix itself on retry.
-                        if (res.status < 500 && res.status !== 408 && res.status !== 429) err.fatal = true;
+                        // A quota error means the project is out of budget, not that the
+                        // request was unlucky. Retrying spends more of a quota that is
+                        // already gone, so stop immediately and let the caller back off.
+                        if (res.status === 429 || /RESOURCE_EXHAUSTED/.test(body)) {
+                            err.quota = true;
+                            err.fatal = true;
+                        } else if (res.status < 500 && res.status !== 408) {
+                            // Other 4xx will not fix itself on retry either.
+                            err.fatal = true;
+                        }
                         throw err;
                     }
                     return await res.json();
@@ -1255,13 +1263,39 @@
                 await ensureHistoryCovers(hours);
             } catch (e) {
                 console.error('Range change fetch failed:', e);
-                showConnectionError(e);
+                if (e.quota) {
+                    quotaCooldownUntil = Date.now() + QUOTA_COOLDOWN_MS;
+                    showQuotaError();
+                } else {
+                    showConnectionError(e);
+                }
             }
             redrawCharts();
         }
 
+        // Once Firestore reports the quota is gone, polling every 60s just burns
+        // more of it. Hold off, and say plainly when we will try again.
+        const QUOTA_COOLDOWN_MS = 15 * 60 * 1000;
+        let quotaCooldownUntil = 0;
+
+        function showQuotaError() {
+            document.getElementById('statusDot').className = 'status-dot offline';
+            document.getElementById('statusText').textContent = 'Quota exceeded';
+            const resumeAt = new Date(quotaCooldownUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            showAlert(
+                document.getElementById('alertBanner'),
+                document.getElementById('alertTitle'),
+                document.getElementById('alertMsg'),
+                '⚠️ Firestore Quota Exceeded',
+                (lastReading ? 'Showing the last reading that loaded successfully. ' : 'No readings could be loaded. ')
+                    + `The project is out of read quota - paused to avoid using more, retrying at ${resumeAt}. `
+                    + 'Free-tier read quota resets at midnight Pacific.'
+            );
+        }
+
         async function refresh() {
             if (refreshing) return;  // a slow history fetch must not overlap the next tick
+            if (Date.now() < quotaCooldownUntil) { showQuotaError(); return; }
             refreshing = true;
             try {
                 let err = null;
@@ -1285,7 +1319,12 @@
                 if (err) {
                     // Keep the last good numbers visible instead of blanking to "--".
                     if (lastReading) updateUI(lastReading);
-                    showConnectionError(err);
+                    if (err.quota) {
+                        quotaCooldownUntil = Date.now() + QUOTA_COOLDOWN_MS;
+                        showQuotaError(err);
+                    } else {
+                        showConnectionError(err);
+                    }
                 } else {
                     updateUI(lastReading);
                     checkAlerts(lastReading);
