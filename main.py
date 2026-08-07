@@ -41,6 +41,73 @@ WIFI_RECYCLE_THRESHOLD = 3
 # Low memory threshold (bytes) — reboot to reclaim heap
 LOW_MEM_THRESHOLD = 20000
 
+# Hardware watchdog timeout (ms). The RP2040 watchdog caps at ~8.3s.
+WDT_TIMEOUT_MS = 8000
+
+_wdt = None
+
+
+def wdt_start():
+    """Arm the hardware watchdog.
+
+    The software watchdog below can only fire if the main loop is still
+    running — it is useless against a blocked socket read, which is what
+    actually wedges this device. The hardware watchdog catches that case.
+
+    Deliberately armed only *after* the boot-time OTA check: the RP2040
+    watchdog cannot be disabled once started, so leaving boot unguarded keeps
+    'power cycle -> boot -> OTA' as a recovery path that can never be caught
+    in a reboot loop.
+    """
+    global _wdt
+    if _wdt is not None:
+        return
+    try:
+        from machine import WDT
+        _wdt = WDT(timeout=WDT_TIMEOUT_MS)
+        log.info(f'Hardware watchdog armed ({WDT_TIMEOUT_MS}ms)')
+    except Exception as e:
+        log.warn(f'Hardware watchdog unavailable: {e}')
+
+
+def feed():
+    """Pet the hardware watchdog. No-op until it is armed."""
+    if _wdt is not None:
+        _wdt.feed()
+
+
+def sleep_fed(seconds):
+    """time.sleep() in 1s slices, feeding the watchdog between each.
+
+    A bare time.sleep(READ_INTERVAL) would blow the 8.3s watchdog window.
+    """
+    for _ in range(int(seconds)):
+        feed()
+        time.sleep(1)
+    feed()
+
+
+# time.ticks_ms() wraps at 2**30 ms (~12.4 days) on MicroPython, so it cannot
+# be reported as uptime directly — it silently rolls over and makes reboots
+# indistinguishable from wraps in telemetry. Accumulate deltas instead.
+_uptime_last_ticks = time.ticks_ms()
+_uptime_accum_s = 0
+
+
+def uptime_s():
+    """Monotonic uptime in seconds, immune to ticks_ms() wrapping.
+
+    Correct as long as it is called more often than the wrap period; it runs
+    once per READ_INTERVAL (60s).
+    """
+    global _uptime_last_ticks, _uptime_accum_s
+    delta = time.ticks_diff(time.ticks_ms(), _uptime_last_ticks)
+    if delta >= 1000:
+        whole = delta // 1000
+        _uptime_accum_s += whole
+        _uptime_last_ticks = time.ticks_add(_uptime_last_ticks, whole * 1000)
+    return _uptime_accum_s
+
 
 def blink(times=1, duration=0.1):
     """Blink onboard LED"""
@@ -78,7 +145,7 @@ def get_device_telemetry():
     telemetry['alloc_mem'] = gc.mem_alloc()
 
     # Uptime
-    telemetry['uptime_s'] = time.ticks_ms() // 1000
+    telemetry['uptime_s'] = uptime_s()
 
     # Reset Cause
     telemetry['reset_cause'] = machine.reset_cause()
@@ -137,7 +204,7 @@ def ensure_wifi(force_recycle=False):
         try:
             wlan.disconnect()
             wlan.active(False)
-            time.sleep(1)
+            sleep_fed(1)
         except:
             pass
     
@@ -163,6 +230,7 @@ def ensure_wifi(force_recycle=False):
         wlan.connect(WIFI_SSID, WIFI_PASSWORD)
         timeout = 15
         while not wlan.isconnected() and timeout > 0:
+            feed()
             time.sleep(1)
             timeout -= 1
         if wlan.isconnected():
@@ -182,7 +250,7 @@ def ensure_wifi(force_recycle=False):
         log.warn(f'WiFi attempt {attempt} failed: {reason}')
         wlan.disconnect()
         if attempt < WIFI_MAX_RETRIES:
-            time.sleep(WIFI_RETRY_DELAY)
+            sleep_fed(WIFI_RETRY_DELAY)
     
     print("  WiFi reconnect failed")
     blink(6, 0.1)
@@ -225,8 +293,9 @@ def main():
     if crash_content:
         log.info('Found previous crash log')
         
-    # Main loop
+    # Main loop. Arm the hardware watchdog only now — see wdt_start().
     log.info('Entering sensor loop (interval={}s)'.format(READ_INTERVAL))
+    wdt_start()
     loop_count = 0
     ota_count = 0
     send_buffer = []
@@ -234,7 +303,8 @@ def main():
     last_healthy_tick = time.ticks_ms()
     while True:
         loop_start = time.ticks_ms()
-        
+        feed()
+
         # Software watchdog: reboot if no successful loop in 5 minutes
         if time.ticks_diff(time.ticks_ms(), last_healthy_tick) > WATCHDOG_TIMEOUT_MS:
             log.error('Software watchdog — no progress in 5 min, rebooting')
@@ -287,6 +357,7 @@ def main():
                 # Try to upload crash log if pending
                 if crash_content:
                     from firebase import post_crash_log
+                    feed()
                     if post_crash_log(crash_content):
                         log.archive_crash_log()
                         crash_content = None
@@ -296,11 +367,13 @@ def main():
                     log.info(f'Flushing {len(send_buffer)} buffered reading(s)')
                     still_failed = []
                     for buffered in send_buffer:
+                        feed()
                         if not post_reading(buffered):
                             still_failed.append(buffered)
                             break
                     send_buffer = still_failed
 
+                feed()
                 if post_reading(data):
                     consecutive_failures = 0
                     last_healthy_tick = time.ticks_ms()
@@ -329,6 +402,7 @@ def main():
             loop_count = 0
             try:
                 import ntptime
+                feed()
                 ntptime.settime()
             except Exception:
                 pass
@@ -337,14 +411,14 @@ def main():
             ota_count = 0
             try:
                 log.info('Hourly OTA check')
-                check_for_updates(auto_reboot=True)
+                check_for_updates(auto_reboot=True, feed=feed)
             except Exception as e:
                 log.error(f'OTA check failed: {e}')
-        
+
         global last_loop_duration_ms
         last_loop_duration_ms = time.ticks_diff(time.ticks_ms(), loop_start)
-        
-        time.sleep(READ_INTERVAL)
+
+        sleep_fed(READ_INTERVAL)
 
 
 if __name__ == '__main__':

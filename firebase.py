@@ -11,10 +11,44 @@ except ImportError:
 
 FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/{}/databases/(default)/documents"
 
+# Socket timeout (seconds) for every Firestore request. urequests has no
+# default timeout, so a half-open connection (stale NAT entry after an AP
+# reboot) blocks the socket read forever and hangs the whole device — the
+# main loop never runs again, so the software watchdog can never fire.
+#
+# Kept below main.WDT_TIMEOUT_MS (8s) on purpose: a stalled post should raise
+# here and get buffered for retry, leaving the hardware watchdog as the
+# backstop for blocking that a socket timeout cannot cover. Healthy posts
+# complete in ~2s end to end.
+REQUEST_TIMEOUT = 5
+
+# Cleared permanently the first time urequests rejects the timeout kwarg, so
+# older builds that lack the parameter cost one TypeError rather than one per
+# request.
+_timeout_supported = True
+
 
 def _get_url(collection):
     """Build Firestore REST URL for a collection"""
     return FIRESTORE_URL.format(FIREBASE_PROJECT_ID) + "/" + collection
+
+
+def _post(url, body):
+    """POST with a socket timeout.
+
+    If urequests predates the `timeout` kwarg it raises TypeError while binding
+    arguments — before any network I/O — so falling back is safe here.
+    """
+    global _timeout_supported
+    headers = {"Content-Type": "application/json"}
+    if _timeout_supported:
+        try:
+            return urequests.post(url, data=body, headers=headers,
+                                  timeout=REQUEST_TIMEOUT)
+        except TypeError:
+            _timeout_supported = False
+            log.warn('urequests has no timeout support — posts can block')
+    return urequests.post(url, data=body, headers=headers)
 
 
 def post_reading(data):
@@ -63,7 +97,7 @@ def post_reading(data):
 
     r = None
     try:
-        r = urequests.post(url, data=body, headers={"Content-Type": "application/json"})
+        r = _post(url, body)
         if r.status_code in (200, 201):
             log.info(f'Firebase OK: {data["voltage"]}V')
             return True
@@ -104,7 +138,7 @@ def post_crash_log(traceback_text):
 
     r = None
     try:
-        r = urequests.post(url, data=body, headers={"Content-Type": "application/json"})
+        r = _post(url, body)
         if r.status_code in (200, 201):
             log.info('Firebase OK: Crash log uploaded')
             return True

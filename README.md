@@ -178,6 +178,35 @@ To push an update:
 3. Push to GitHub
 4. Pico downloads new files on next boot
 
+## Reliability
+
+The device sits in a well pump house, so it has to recover from network trouble
+without a visit. Four layers, outermost last:
+
+| Layer | Trigger | Action |
+|-------|---------|--------|
+| Request timeout (5s) | A network read stalls | Request fails; reading goes to the retry buffer |
+| Send buffer (30 readings) | Firebase unreachable | Holds ~30 min of readings, flushes on reconnect |
+| WiFi recycle | 3 consecutive post failures | Tears down and rebuilds the link (`isconnected()` can report a stale link as up) |
+| Software watchdog (5 min) | No successful post | `machine.reset()` |
+| Hardware watchdog (8s) | Main loop stops running at all | Hard reset |
+
+The hardware watchdog exists because the software one is checked at the top of the
+main loop — it cannot fire while the loop is blocked inside a socket read, which
+is exactly what caused the 27-day outage fixed in v1.15.0.
+
+It is armed only *after* the boot-time OTA check. The RP2040 watchdog cannot be
+disabled once started, so leaving boot unguarded guarantees that
+**power cycle → boot → OTA update** always completes, even if a bad release would
+otherwise reboot-loop the device. Keep it that way: never arm the watchdog earlier
+in the boot sequence.
+
+Because the watchdog window is ~8.3s and it cannot be fed from inside a blocking
+`urequests` call, network timeouts are deliberately set below it (5s), and
+long waits — the 60s inter-reading sleep, WiFi retries, OTA downloads — are
+chunked so the watchdog is fed throughout. Anything new that blocks for more than
+8 seconds needs the same treatment.
+
 ## Troubleshooting via USB
 
 Connect to the Pico W over USB for hardware debugging using `mpremote`:
@@ -192,6 +221,14 @@ There are two ways to drop into the MicroPython REPL:
 
 1. **Ctrl+C** — Press Ctrl+C during the 3-second boot delay, or at any time while the main loop is running.
 2. **Debug jumper** — Connect GP15 to GND before powering on. This skips all code and drops straight to the REPL.
+
+> ⚠️ **The hardware watchdog reboots an idle REPL.** Since v1.15.0 the main loop
+> arms an 8-second `machine.WDT`, and nothing feeds it once you break out to the
+> REPL — so Ctrl+C *during the main loop* gives you about 8 seconds before the
+> device resets. For hands-on debugging use the **GP15 jumper**, or Ctrl+C during
+> the 3-second boot delay: both stop execution before `main()` arms the watchdog,
+> leaving the REPL up indefinitely. The RP2040 watchdog cannot be disabled once
+> started, so there is no way to turn it off from a running session.
 
 ### Useful REPL Commands
 

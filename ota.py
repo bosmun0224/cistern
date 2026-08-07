@@ -11,6 +11,30 @@ except ImportError:
 # Canonical file list — always defined here so OTA updates propagate it.
 OTA_FILES = ['main.py', 'sensor.py', 'ota.py', 'firebase.py', 'provision.py', 'log.py']
 
+# Socket timeout (seconds). Same rationale as firebase.REQUEST_TIMEOUT: without
+# it a stalled connection blocks forever and freezes the device mid-update.
+# Also kept below the 8s hardware watchdog window so a stalled download aborts
+# cleanly rather than tripping a reboot mid-update.
+REQUEST_TIMEOUT = 5
+
+_timeout_supported = True
+
+
+def _get(url):
+    """GET with a socket timeout, falling back if urequests is too old.
+
+    TypeError is raised while binding arguments — before any network I/O — so
+    retrying without the kwarg cannot duplicate a request.
+    """
+    global _timeout_supported
+    if _timeout_supported:
+        try:
+            return urequests.get(url, timeout=REQUEST_TIMEOUT)
+        except TypeError:
+            _timeout_supported = False
+            print("urequests has no timeout support — downloads can block")
+    return urequests.get(url)
+
 
 def get_local_version():
     """Read local version.txt"""
@@ -27,7 +51,7 @@ def get_remote_version():
         return None
     r = None
     try:
-        r = urequests.get(OTA_BASE_URL + "version.txt")
+        r = _get(OTA_BASE_URL + "version.txt")
         if r.status_code == 200:
             version = r.text.strip()
             return version
@@ -52,7 +76,7 @@ def download_file(filename):
     
     r = None
     try:
-        r = urequests.get(url)
+        r = _get(url)
         if r.status_code == 200:
             content = r.text
             # Validate: non-empty and not an error page
@@ -91,10 +115,13 @@ def download_file(filename):
     return False
 
 
-def check_for_updates(auto_reboot=True):
+def check_for_updates(auto_reboot=True, feed=None):
     """
     Check for OTA updates and apply if available.
     Returns True if update was applied.
+
+    feed: optional callable invoked between downloads to pet the hardware
+    watchdog, which cannot be fed from inside a blocking urequests call.
     """
     if not OTA_BASE_URL:
         print("OTA disabled (no OTA_BASE_URL in config)")
@@ -131,11 +158,15 @@ def check_for_updates(auto_reboot=True):
     # Download all OTA files
     success = True
     for filename in OTA_FILES:
+        if feed:
+            feed()
         if not download_file(filename):
             success = False
-    
+
     if success:
         # Update version file last
+        if feed:
+            feed()
         download_file('version.txt')
         print("Update complete!")
         

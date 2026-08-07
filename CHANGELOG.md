@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.15.0] - 2026-08-07
+
+Fixes a silent multi-week outage: the device stopped posting on 2026-07-08 and did
+not report again until it was physically power-cycled on 2026-08-04, leaving a
+27-day hole in Firestore. Every reading in that history carries
+`reset_cause = 1` (PWRON_RESET) and `crash_reports` is empty, so the device was
+not crashing — it was hung, and nothing on board could recover it.
+
+- Fix: **socket timeout on every network request.** `urequests` has no default
+  timeout, so a half-open connection (a stale NAT entry after an AP reboot) blocks
+  the socket read forever and freezes the main loop. Both `firebase.py` and
+  `ota.py` now pass an explicit 5s timeout, with a safe fallback for older
+  `urequests` builds that lack the kwarg. This is the root cause of the outage.
+- Feat: **hardware watchdog** (`machine.WDT`, 8s). The existing software watchdog
+  is checked at the top of the main loop, so it can never fire while the loop is
+  blocked inside a socket read — precisely the failure that wedged the device.
+  Armed only *after* the boot-time OTA check, because the RP2040 watchdog cannot
+  be disabled once started; this keeps "power cycle → boot → OTA" as a recovery
+  path that can never be caught in a reboot loop.
+- Feat: watchdog feeding through every long-running path — the 60s inter-reading
+  sleep, WiFi connect waits and retry delays, buffered-reading flushes, NTP sync,
+  and between OTA file downloads. Request timeouts are deliberately shorter than
+  the watchdog window so a stalled post buffers for retry rather than tripping a
+  reboot.
+- Fix: **`uptime_s` no longer wraps.** It reported `time.ticks_ms() // 1000`,
+  which rolls over at 2^30 ms (~12.4 days), making reboots indistinguishable from
+  wraps in telemetry. Now accumulates deltas via `ticks_diff`/`ticks_add`.
+- Test: new `tests/test_reliability.py` covering request timeouts, the
+  no-double-post fallback, and uptime monotonicity across a simulated 40-day run.
+- Test: repaired the stale `test_sensor.py` I2C/time stubs, which had been failing
+  since v1.13.2 added the ADS1115 general-call reset.
+
+## [1.14.3] - 2026-05-14
+
+- Fix: remove the VSYS ADC read added in 1.14.2. It sampled `machine.ADC(29)`,
+  which on the Pico W is shared with the CYW43 wireless chip — reading it every
+  60s intermittently crashed the WiFi stack.
+
+## [1.14.2] - 2026-05-14
+
+- Chore: log `vsys_v` and `current_ma` to diagnose the sensor undercurrent fault.
+- Infra: allow `vsys_v` in the Firestore security-rule allowlist and telemetry payload.
+
 ## [1.14.1] - 2026-04-25
 
 - Fix: OTA boot loop caused by `version.txt` failing the 10-byte minimum file size safety check (explicitly bypass the check for `version.txt`).
