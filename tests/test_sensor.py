@@ -8,8 +8,13 @@ is done client-side on the dashboard.  These tests verify:
 
 import math
 import sys
+import time
 import types
 import unittest
+
+# MicroPython-only time helpers used by sensor.py (added in v1.13.2).
+time.sleep_ms = lambda ms: None
+time.sleep_us = lambda us: None
 
 # Stub out MicroPython-only modules so sensor.py can be imported on CPython.
 _machine = types.ModuleType("machine")
@@ -19,6 +24,8 @@ _machine.I2C = lambda *a, **kw: type(
         "scan": lambda s: [],
         "readfrom_mem": lambda *a: b"\x00\x00",
         "writeto_mem": lambda *a: None,
+        # Used by _reset_ads1115() for the I2C general-call reset (v1.13.2).
+        "writeto": lambda *a: None,
     },
 )()
 _machine.Pin = lambda *a, **kw: None

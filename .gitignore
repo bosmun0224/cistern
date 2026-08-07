@@ -5,6 +5,11 @@ config.py
 # Temp files
 *.tmp
 
+# Device runtime logs (also produced locally by the test suite)
+device.log
+crash.log
+crash.log.old
+
 # Terraform
 infrastructure/.terraform/
 infrastructure/*.tfstate
