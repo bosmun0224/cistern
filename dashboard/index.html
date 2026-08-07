@@ -509,12 +509,12 @@
         // Fetch + parse JSON, retrying transient failures with exponential backoff.
         // Throws once the retries are exhausted so callers can tell a failed request
         // apart from a successful request that returned no documents.
-        async function fetchJson(url, label) {
+        async function fetchJson(url, label, options) {
             let lastErr;
             for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
                 if (attempt > 0) await sleep(400 * Math.pow(2, attempt - 1) + Math.random() * 200);
                 try {
-                    const res = await fetch(url, { cache: 'no-store' });
+                    const res = await fetch(url, { cache: 'no-store', ...options });
                     if (!res.ok) {
                         const body = await res.text().catch(() => '');
                         const err = new Error(`${label}: HTTP ${res.status} ${res.statusText}${body ? ' - ' + body.slice(0, 160) : ''}`);
@@ -543,39 +543,85 @@
             return null;
         }
 
-        // Throws if the very first page fails; a later page failing just truncates
-        // history rather than discarding what was already fetched.
-        async function fetchHistory() {
-            // Firestore REST API caps at 300 docs/page. Paginate up to 14 days then stop.
-            const cutoff = new Date(Date.now() - 14 * 24 * 3600 * 1000);
-            let allDocs = [];
-            let pageToken = null;
-            for (let page = 0; page < 100; page++) {
-                let url = `${FIRESTORE_BASE}/readings?key=${FIREBASE_API_KEY}&orderBy=${ORDER_BY}&pageSize=300`;
-                if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
-                let data;
-                try {
-                    data = await fetchJson(url, `history page ${page + 1}`);
-                } catch (e) {
-                    if (page === 0) throw e;
-                    console.warn(`History truncated after ${allDocs.length} docs: ${e.message}`);
-                    break;
-                }
-                if (data.documents && data.documents.length) {
-                    allDocs.push(...data.documents);
-                    // Stop if oldest doc on this page is beyond 14-day window
-                    const lastDoc = data.documents[data.documents.length - 1];
-                    const lastTs = new Date(lastDoc.fields.timestamp?.timestampValue || 0);
-                    if (lastTs < cutoff) break;
-                }
-                if (!data.nextPageToken) break;
-                pageToken = data.nextPageToken;
-            }
-            allHistory = allDocs
-                .map(d => enrichReading(parseDoc(d)))
-                .filter(r => r.timestamp >= cutoff)
-                .reverse();
+        // Earliest timestamp currently held in allHistory, so we know when a wider
+        // range actually needs more data instead of refetching what we already have.
+        let historyCoveredFrom = null;
+
+        // The device writes once a minute; allow generous headroom, and cap so a
+        // pathological query can never try to stream an unbounded result.
+        function docLimitForSpan(ms) {
+            return Math.min(Math.ceil((ms / 60000) * 1.5) + 120, 25000);
+        }
+
+        // One structured query filtered server-side by timestamp. This replaces
+        // paginating the entire collection - the old code pulled every document and
+        // filtered client-side, which is ~68 sequential requests for a 14-day window.
+        async function queryReadings(since, label) {
+            const url = `${FIRESTORE_BASE}:runQuery?key=${FIREBASE_API_KEY}`;
+            const body = {
+                structuredQuery: {
+                    from: [{ collectionId: 'readings' }],
+                    where: {
+                        fieldFilter: {
+                            field: { fieldPath: 'timestamp' },
+                            op: 'GREATER_THAN_OR_EQUAL',
+                            value: { timestampValue: since.toISOString() },
+                        },
+                    },
+                    // Newest first so that hitting the limit drops the oldest points,
+                    // not the ones the user is most likely looking at.
+                    orderBy: [{ field: { fieldPath: 'timestamp' }, direction: 'DESCENDING' }],
+                    limit: docLimitForSpan(Date.now() - since.getTime()),
+                },
+            };
+            const rows = await fetchJson(url, label, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            // runQuery streams an array; rows without a `document` are empty-result markers.
+            return (Array.isArray(rows) ? rows : [])
+                .filter(r => r && r.document)
+                .map(r => enrichReading(parseDoc(r.document)))
+                .reverse();   // -> ascending, which is what the charts expect
+        }
+
+        // Full load for a window. Throws if Firestore could not be reached.
+        async function loadHistory(hours) {
+            const since = new Date(Date.now() - hours * 3600 * 1000);
+            allHistory = await queryReadings(since, `history (${hours}h)`);
+            historyCoveredFrom = since;
             return allHistory;
+        }
+
+        // Poll path: fetch only what arrived since the newest cached reading and
+        // append it. Normally a single document, instead of refetching everything.
+        async function updateHistory() {
+            if (!allHistory.length || !historyCoveredFrom) {
+                return loadHistory(maxRangeHours());
+            }
+            const newest = allHistory[allHistory.length - 1].timestamp;
+            const fresh = await queryReadings(new Date(newest.getTime() + 1), 'history update');
+            if (fresh.length) allHistory = allHistory.concat(fresh);
+
+            // Drop points that have aged out of the widest window in use.
+            const cutoff = Date.now() - maxRangeHours() * 3600 * 1000;
+            if (allHistory.length && allHistory[0].timestamp.getTime() < cutoff) {
+                allHistory = allHistory.filter(r => r.timestamp.getTime() >= cutoff);
+                historyCoveredFrom = new Date(cutoff);
+            }
+            return allHistory;
+        }
+
+        function maxRangeHours() {
+            return Math.max(waterRangeHours, deviceRangeHours);
+        }
+
+        // Widening a range needs older data than we hold; narrowing does not.
+        async function ensureHistoryCovers(hours) {
+            const since = new Date(Date.now() - hours * 3600 * 1000);
+            if (historyCoveredFrom && since >= historyCoveredFrom) return;
+            await loadHistory(hours);
         }
 
         function filterByHours(readings, hours) {
@@ -1202,6 +1248,18 @@
         // ---- Refresh ----
         let refreshing = false;
 
+        // Selecting a wider range may need older data than is cached; fetch it,
+        // but never leave the chart blank if that fetch fails.
+        async function widenRange(hours) {
+            try {
+                await ensureHistoryCovers(hours);
+            } catch (e) {
+                console.error('Range change fetch failed:', e);
+                showConnectionError(e);
+            }
+            redrawCharts();
+        }
+
         async function refresh() {
             if (refreshing) return;  // a slow history fetch must not overlap the next tick
             refreshing = true;
@@ -1216,7 +1274,7 @@
                 }
 
                 try {
-                    await fetchHistory();
+                    await updateHistory();
                 } catch (e) {
                     err = err || e;
                     console.error('History fetch failed:', e);
@@ -1242,8 +1300,16 @@
         async function init() {
             await loadCalibration();
 
-            setupRangeButtons('waterRangeBtns', h => { waterRangeHours = h; if (waterChart) { waterChart.destroy(); waterChart = null; } redrawCharts(); });
-            setupRangeButtons('deviceRangeBtns', h => { deviceRangeHours = h; if (deviceChart) { deviceChart.destroy(); deviceChart = null; } redrawCharts(); });
+            setupRangeButtons('waterRangeBtns', async h => {
+                waterRangeHours = h;
+                if (waterChart) { waterChart.destroy(); waterChart = null; }
+                await widenRange(h);
+            });
+            setupRangeButtons('deviceRangeBtns', async h => {
+                deviceRangeHours = h;
+                if (deviceChart) { deviceChart.destroy(); deviceChart = null; }
+                await widenRange(h);
+            });
 
             // Telemetry box click → select series for device chart
             document.getElementById('telemetryGrid').addEventListener('click', (e) => {
