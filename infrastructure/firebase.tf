@@ -68,6 +68,23 @@ resource "google_firebaserules_ruleset" "firestore" {
         rules_version = '2';
         service cloud.firestore {
           match /databases/{database}/documents {
+            // Optional-field helpers for Streamy. The web app clears a field by
+            // writing an explicit null (an omitted field would leave the old
+            // value in place on a masked update), so null has to pass.
+            function optString(data, key, maxLen) {
+              return !(key in data)
+                  || data[key] == null
+                  || (data[key] is string && data[key].size() <= maxLen);
+            }
+            function optInt(data, key, lo, hi) {
+              return !(key in data)
+                  || data[key] == null
+                  || (data[key] is int && data[key] >= lo && data[key] <= hi);
+            }
+            function optNumber(data, key) {
+              return !(key in data) || data[key] == null || data[key] is number;
+            }
+
             match /config/{doc} {
               allow read: if true;
               allow write: if false;
@@ -90,6 +107,52 @@ resource "google_firebaserules_ruleset" "firestore" {
                            && request.resource.data.timestamp is timestamp
                            && request.resource.data.traceback is string;
               allow update, delete: if false;
+            }
+            // --- Streamy (stream flow + trip log app) ---
+            // Shared, unauthenticated read/write for a small group of friends.
+            // The validation below is an abuse guard, not access control: it
+            // caps document shape and size so a stray script can't fill the
+            // database, but anyone who has the URL can write. Add Firebase Auth
+            // here if that stops being an acceptable trade.
+            match /streams/{siteId} {
+              allow read: if true;
+              allow create, update: if request.resource.data.keys().hasOnly(['site_id', 'name', 'state',
+                                'usgs_name', 'lat', 'lng', 'ideal_min', 'ideal_max', 'notes', 'created_at'])
+                           && request.resource.data.site_id is string
+                           && request.resource.data.site_id.size() <= 20
+                           && optString(request.resource.data, 'name', 120)
+                           && optString(request.resource.data, 'state', 2)
+                           && optString(request.resource.data, 'usgs_name', 200)
+                           && optString(request.resource.data, 'notes', 4000)
+                           && optNumber(request.resource.data, 'lat')
+                           && optNumber(request.resource.data, 'lng')
+                           && optNumber(request.resource.data, 'ideal_min')
+                           && optNumber(request.resource.data, 'ideal_max');
+              allow delete: if true;
+            }
+            match /trips/{trip} {
+              allow read: if true;
+              allow create, update: if request.resource.data.keys().hasAll(['site_id', 'date', 'rating'])
+                           && request.resource.data.keys().hasOnly(['site_id', 'date', 'rating', 'clarity',
+                                'clarity_note', 'flow_cfs', 'water_temp_f', 'anglers', 'fish', 'species',
+                                'flies', 'notes', 'created_at'])
+                           && request.resource.data.site_id is string
+                           && request.resource.data.site_id.size() <= 20
+                           && request.resource.data.date is string
+                           && request.resource.data.date.size() == 10
+                           && request.resource.data.rating is int
+                           && request.resource.data.rating >= 1
+                           && request.resource.data.rating <= 5
+                           && optInt(request.resource.data, 'clarity', 1, 5)
+                           && optInt(request.resource.data, 'fish', 0, 10000)
+                           && optNumber(request.resource.data, 'flow_cfs')
+                           && optNumber(request.resource.data, 'water_temp_f')
+                           && optString(request.resource.data, 'clarity_note', 200)
+                           && optString(request.resource.data, 'species', 200)
+                           && optString(request.resource.data, 'flies', 300)
+                           && optString(request.resource.data, 'anglers', 200)
+                           && optString(request.resource.data, 'notes', 4000);
+              allow delete: if true;
             }
             match /{document=**} {
               allow read, write: if false;
